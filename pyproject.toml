@@ -22,7 +22,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 dependencies = [
-    "pygit2 >= 1.14",
+    "pygit2 >= 1.15.1",
     "aiohttp >= 3.9",
 ]
 
