@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "pygit2 >= 1.14",
-    "aiohttp >= 3.9",
+    "aiohttp >= 3.13.5",
 ]
 
 [project.optional-dependencies]
