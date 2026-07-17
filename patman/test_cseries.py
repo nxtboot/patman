@@ -6102,9 +6102,25 @@ VERDICT: skip"""
         self.assertEqual("Normal 'text' stays",
                          cleanup_review_text("Normal 'text' stays"))
 
-        # Quoted diff lines not mangled
-        line = "> +\t`something`"
-        self.assertEqual('> +\tsomething', cleanup_review_text(line))
+        # Double-quoted short tokens in our own prose become single-quoted
+        self.assertEqual("Use 'handoff' here",
+                         cleanup_review_text('Use "handoff" here'))
+
+        # Quoted lines are reproduced verbatim: the author's code, with its
+        # exact quotes and any backticks, must not be restyled
+        self.assertEqual('> +\tkeyfile = "some_key";',
+                         cleanup_review_text('> +\tkeyfile = "some_key";'))
+        self.assertEqual('> +\t`something`',
+                         cleanup_review_text('> +\t`something`'))
+
+        # The fix applies within a full email: prose is cleaned, the quoted
+        # commit-message line keeps its double quotes
+        email = ('> +\tkeyfile = "some_key";\n\n'
+                 'Please quote "some_key" consistently')
+        self.assertEqual(
+            '> +\tkeyfile = "some_key";\n\n'
+            "Please quote 'some_key' consistently",
+            cleanup_review_text(email))
 
     def test_review_greeting_fallback(self):
         """Test greeting falls back to email when name is empty"""

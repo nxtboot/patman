@@ -8,6 +8,13 @@ the project follows `Semantic Versioning <https://semver.org/>`_.
 Unreleased
 ----------
 
+Fixed
+~~~~~
+- A review no longer restyles the author's quoted code: the cleanup
+  that converts double quotes to single (to match our prose) skipped
+  the ``> `` quoted lines, so a string literal such as ``"some_key"`` is
+  reproduced faithfully instead of becoming ``'some_key'``.
+
 0.2.0 - 2026-07-15
 ------------------
 

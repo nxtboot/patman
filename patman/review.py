@@ -499,6 +499,10 @@ Rules:
   filenames, string literals, misspelled words, etc.) use single
   quotes: 'my_var' and 'handoff' not "my_var" or "handoff". Do not
   quote identifiers that are obviously code (e.g. CONFIG_FOO)
+- These quoting and spelling conventions are for YOUR comment text
+  only. In the '> ' quoted lines, reproduce the author's text exactly:
+  never change double quotes to single, add or remove quotes, or
+  restyle anything — a quote of "some_key" must stay "some_key"
 - Never put a period directly after a code identifier — rephrase,
   omit the period, or use an em dash to start the next clause
 - If another reviewer has already made a point, do NOT repeat it,
@@ -627,6 +631,10 @@ Rules:
   filenames, string literals, misspelled words, etc.) use single
   quotes: 'my_var' and 'handoff' not "my_var" or "handoff". Do not
   quote identifiers that are obviously code (e.g. CONFIG_FOO)
+- These quoting and spelling conventions are for YOUR comment text
+  only. In the '> ' quoted lines, reproduce the author's text exactly:
+  never change double quotes to single, add or remove quotes, or
+  restyle anything — a quote of "some_key" must stay "some_key"
 - Never put a period directly after a code identifier — rephrase,
   omit the period, or use an em dash to start the next clause
 - Do NOT quote code fragments in the cover-letter reply — code
@@ -891,24 +899,31 @@ def cleanup_review_text(text):
     Returns:
         str: Cleaned-up text
     """
-    # Replace backtick-quoted code with plain text: `foo` -> foo
-    text = re.sub(r'`([^`]+)`', r'\1', text)
+    def fix_line(line):
+        # Replace backtick-quoted code with plain text: `foo` -> foo
+        line = re.sub(r'`([^`]+)`', r'\1', line)
 
-    # Remove quotes around function references: 'func()' -> func()
-    text = re.sub(r"'(\w+\(\))'", r'\1', text)
+        # Remove quotes around function references: 'func()' -> func()
+        line = re.sub(r"'(\w+\(\))'", r'\1', line)
 
-    # Remove double quotes around function references: "func()" -> func()
-    text = re.sub(r'"(\w+\(\))"', r'\1', text)
+        # Remove double quotes around function references: "func()" -> func()
+        line = re.sub(r'"(\w+\(\))"', r'\1', line)
 
-    # Convert double-quoted short tokens to single quotes:
-    # "handoff" -> 'handoff'. Leave longer quoted text (full sentences
-    # or phrases) alone, since they may be intentional quotations.
-    text = re.sub(r'"([^"\n]{1,40})"',
-                  lambda m: f"'{m.group(1)}'"
-                  if ' ' not in m.group(1) else m.group(0),
-                  text)
+        # Convert double-quoted short tokens to single quotes:
+        # "handoff" -> 'handoff'. Leave longer quoted text (full sentences
+        # or phrases) alone, since they may be intentional quotations.
+        line = re.sub(r'"([^"\n]{1,40})"',
+                      lambda m: f"'{m.group(1)}'"
+                      if ' ' not in m.group(1) else m.group(0),
+                      line)
+        return line
 
-    return text
+    # Quoted lines ('> ...') reproduce the author's commit message and diff
+    # verbatim, so must keep their exact characters -- including " vs ' and
+    # any backticks -- rather than being restyled to our prose conventions.
+    # Only clean up our own text
+    return '\n'.join(line if line.startswith('>') else fix_line(line)
+                     for line in text.split('\n'))
 
 
 _REFINE_REVIEWS_PROMPT = '''You are editing draft code-review \
