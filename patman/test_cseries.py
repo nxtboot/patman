@@ -5563,6 +5563,52 @@ VERDICT: skip"""
         self.assertLess(body.index('This commit-message comment.'),
                         body.index('This code comment.'))
 
+    def test_review_commit_msg_comment_inline(self):
+        """A commit-message comment is shown inline, not re-quoted below"""
+        from patman.review import format_review_email
+
+        ctx = self._make_review_ctx(author_name='Anshul Dalal',
+            author_email='anshuld@ti.com', date='2026-07-09',
+            signoff='Regards,\nSimon')
+        commit_message = ('fdt: fix phandles\n\n'
+                          'The phandles were not being copied.')
+        comments = [
+            ('> The phandles were not being copied.',
+             'Please use present tense.'),
+            ('> diff --git a/x b/x\n> @@ -1 +1 @@\n> +code',
+             'Drop the underscore.'),
+        ]
+        body = format_review_email(ctx, 'Anshul', 'changes_needed',
+                                   comments, commit_message)
+
+        # The quoted line appears once (in the top quote), with the comment
+        # right after it -- not re-quoted lower down
+        self.assertEqual(1, body.count('> The phandles were not being copied.'))
+        quoted = body.index('> The phandles were not being copied.')
+        msg_c = body.index('Please use present tense.')
+        code_c = body.index('Drop the underscore.')
+        self.assertLess(quoted, msg_c)
+        self.assertLess(msg_c, code_c)
+        # The code comment keeps its diff hunk and stays below the quote
+        self.assertLess(body.index('> diff --git a/x b/x'), code_c)
+
+    def test_review_commit_msg_comment_fallback(self):
+        """A comment whose quote is not in the message is shown below"""
+        from patman.review import format_review_email
+
+        ctx = self._make_review_ctx(author_name='Anshul Dalal',
+            author_email='anshuld@ti.com', date='2026-07-09')
+        commit_message = 'fdt: fix phandles\n\nThe body text.'
+        # The quote does not match any commit-message line
+        comments = [('> a line not in the message', 'A general note.')]
+        body = format_review_email(ctx, 'Anshul', 'changes_needed',
+                                   comments, commit_message)
+        # It is preserved below the quote, with its own quoted line
+        self.assertIn('> a line not in the message', body)
+        self.assertIn('A general note.', body)
+        self.assertLess(body.index('> The body text.'),
+                        body.index('A general note.'))
+
     def test_coverity_find_new_defects(self):
         """Test only defects absent from the base are reported as new"""
         from patman import coverity

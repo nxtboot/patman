@@ -8,6 +8,13 @@ the project follows `Semantic Versioning <https://semver.org/>`_.
 Unreleased
 ----------
 
+Changed
+~~~~~~~
+- A review now answers each commit-message comment inline, right after
+  the quoted line it refers to, instead of quoting the whole message at
+  the top and then re-quoting individual lines again lower down. Code
+  comments still follow the quoted message with their diff hunk.
+
 Fixed
 ~~~~~
 - A review no longer restyles the author's quoted code: the cleanup

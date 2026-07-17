@@ -809,9 +809,39 @@ def _is_code_comment(hunk):
     return False
 
 
+def _match_quote_to_lines(hunk, msg_lines):
+    """Find where a commit-message comment's quote ends in the message
+
+    Args:
+        hunk (str): The comment's quoted lines, each '> '-prefixed
+        msg_lines (list of str): Lines of the commit message
+
+    Returns:
+        int or None: Index in msg_lines of the comment's last quoted line,
+            so the comment can be shown right after it; None if the quote
+            is not a commit-message quote or cannot be located there
+    """
+    if not hunk or not msg_lines:
+        return None
+    quoted = [re.sub(r'^> ?', '', ln) for ln in hunk.splitlines()]
+    quoted = [q for q in quoted if q.strip()]
+    if not quoted:
+        return None
+    target = quoted[-1]
+    for i, cl in enumerate(msg_lines):
+        if cl == target:
+            return i
+    return None
+
+
 def _format_with_comments(ctx, greeting, verdict, comments,
                           commit_message=None):
     """Format a review that has comments
+
+    Comments on the commit message are woven in right after the quoted
+    line they refer to (inline-reply style), rather than re-quoting that
+    line again lower down. Comments on the code (which quote a diff hunk)
+    follow the quoted commit message.
 
     Args:
         ctx (ReviewContext): Review context
@@ -829,12 +859,30 @@ def _format_with_comments(ctx, greeting, verdict, comments,
 
     lines.append(
         f'On {ctx.date}, {ctx.author_name} <{ctx.author_email}> wrote:')
+
+    # Place each commit-message comment after the message line it quotes;
+    # code comments (and any quote we cannot locate) go below the quote
+    msg_lines = commit_message.strip().splitlines() if commit_message else []
+    inline = {}
+    below = []
+    for hunk, comment in comments:
+        idx = (None if _is_code_comment(hunk)
+               else _match_quote_to_lines(hunk, msg_lines))
+        if idx is None:
+            below.append((hunk, comment))
+        else:
+            inline.setdefault(idx, []).append(comment)
+
     if commit_message:
-        msg_lines = commit_message.strip().splitlines()
+        # Quote at least the first 20 lines, and always as far as the last
+        # line that carries an inline comment
         max_quote = 20
-        for cl in msg_lines[:max_quote]:
+        limit = max(max_quote, max(inline) + 1 if inline else 0)
+        for i, cl in enumerate(msg_lines[:limit]):
             lines.append(f'> {cl}')
-        if len(msg_lines) > max_quote:
+            for comment in inline.get(i, []):
+                lines += ['', comment, '']
+        if len(msg_lines) > limit:
             lines.append('> [...]')
     diffstat = getattr(ctx, 'diffstat', None)
     if diffstat:
@@ -845,10 +893,10 @@ def _format_with_comments(ctx, greeting, verdict, comments,
                 lines.append(f'> {dl}')
     lines.append('')
 
-    # Comments on the commit message come before comments on the code.
-    # sorted() is stable, so the relative order within each group is kept
-    ordered = sorted(comments, key=lambda hc: _is_code_comment(hc[0]))
-    for hunk, comment in ordered:
+    # Keep commit-message comments (no diff header) before code comments;
+    # sorted() is stable, so the order within each group is preserved
+    below.sort(key=lambda hc: _is_code_comment(hc[0]))
+    for hunk, comment in below:
         if hunk:
             lines.append(hunk)
             lines.append('')
@@ -859,7 +907,8 @@ def _format_with_comments(ctx, greeting, verdict, comments,
         lines += [f'Reviewed-by: {ctx.reviewer_tag}', '']
     elif comments and ctx.signoff:
         lines += [ctx.signoff, '']
-    return '\n'.join(lines)
+    # Collapse any run of blank lines left by the inline insertion
+    return re.sub(r'\n{3,}', '\n\n', '\n'.join(lines))
 
 
 def format_review_email(ctx, greeting, verdict, comments,
