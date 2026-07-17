@@ -1719,6 +1719,25 @@ def search_series(pwork, title, version=None):
     return str(best['id'])
 
 
+def _draft_location(ctx):
+    """Describe the branch and series a batch of drafts belongs to
+
+    Args:
+        ctx (ReviewContext): Review context
+
+    Returns:
+        str: A ' (branch <name>, link <id>)' suffix with whichever parts
+            are known, or '' if neither is (e.g. a re-draft with no branch)
+    """
+    parts = []
+    if getattr(ctx, 'branch_name', None):
+        parts.append(f'branch {ctx.branch_name}')
+    link = ctx.series_data.get('id') if ctx.series_data else None
+    if link:
+        parts.append(f'link {link}')
+    return f' ({", ".join(parts)})' if parts else ''
+
+
 def create_drafts(ctx, args, review_bodies, review_ids):
     """Create Gmail drafts for review emails
 
@@ -1756,14 +1775,15 @@ def create_drafts(ctx, args, review_bodies, review_ids):
     draft_ids = gmail.create_review_drafts(ctx.series_data, to_draft,
         patch_headers=patch_headers, dry_run=args.dry_run,
         account=args.gmail_account, sender=sender)
+    where = _draft_location(ctx)
     if args.dry_run:
-        tout.notice(f'Dry run: would create {len(to_draft)} draft(s)')
+        tout.notice(f'Dry run: would create {len(to_draft)} draft(s){where}')
     else:
         for seq, draft_id in draft_ids.items():
             if seq in review_ids:
                 ctx.cser.db.review_set_draft_id(review_ids[seq], draft_id)
         ctx.cser.commit()
-        tout.notice(f'Created {len(draft_ids)} Gmail draft(s)')
+        tout.notice(f'Created {len(draft_ids)} Gmail draft(s){where}')
 
 
 def _parse_reviewer(args):

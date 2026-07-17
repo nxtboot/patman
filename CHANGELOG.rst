@@ -10,6 +10,9 @@ Unreleased
 
 Changed
 ~~~~~~~
+- The ``Created N Gmail draft(s)`` line (and the dry-run equivalent) now
+  names the review branch and the series link, so it is clear which
+  series the drafts belong to.
 - A review now answers each commit-message comment inline, right after
   the quoted line it refers to, instead of quoting the whole message at
   the top and then re-quoting individual lines again lower down. Code

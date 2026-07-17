@@ -5563,6 +5563,22 @@ VERDICT: skip"""
         self.assertLess(body.index('This commit-message comment.'),
                         body.index('This code comment.'))
 
+    def test_review_draft_location(self):
+        """The draft summary names the branch and series link"""
+        from patman.review import _draft_location, ReviewContext
+
+        ctx = ReviewContext(None, None, {'id': 511354})
+        ctx.branch_name = 'rockchip-fixes'
+        self.assertEqual(' (branch rockchip-fixes, link 511354)',
+                         _draft_location(ctx))
+
+        # Re-draft path: no branch, so just the link
+        ctx = ReviewContext(None, None, {'id': 511354})
+        self.assertEqual(' (link 511354)', _draft_location(ctx))
+
+        # Nothing known -> no suffix
+        self.assertEqual('', _draft_location(ReviewContext(None, None, {})))
+
     def test_review_commit_msg_comment_inline(self):
         """A commit-message comment is shown inline, not re-quoted below"""
         from patman.review import format_review_email
