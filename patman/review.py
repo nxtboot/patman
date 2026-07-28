@@ -513,6 +513,9 @@ Rules:
 - Focus on logic, correctness, and design issues
 - If unsure about something, say so rather than guessing
 - Use {ctx.spelling} spelling in your comments
+- Write each comment paragraph on a single line — do not hard-wrap the
+  prose; the reader's mail client will wrap it. Keep the quoted '> '
+  lines and any indented code exactly as they are
 - Always end with exactly one VERDICT: line (approved or changes_needed)
 '''
 
@@ -641,6 +644,8 @@ Rules:
   belongs in the per-patch reviews. Describe series-level issues in
   prose only.
 - Use {ctx.spelling} spelling
+- Write each comment paragraph on a single line — do not hard-wrap the
+  prose; the reader's mail client will wrap it
 - Be brief — only raise series-level concerns, not per-patch nits
 - Do NOT repeat issues that belong on individual patches
 - VERDICT: skip means no cover letter reply will be sent
@@ -1002,6 +1007,10 @@ RULES:
 - Do not change Reviewed-by tags, attribution lines, quoted commit
   messages, or quoted diff hunks. These are structural parts of the
   email that must be preserved exactly.
+- Do not hard-wrap the prose. Write each comment paragraph on a single
+  line and let the reader's mail client wrap it; keep one blank line
+  between paragraphs. Leave the quoted '> ' lines and any indented code
+  block exactly as they are — do not join or re-wrap those.
 
 OUTPUT FORMAT:
 Return each review separated by a line containing only '---SEQ N---'
