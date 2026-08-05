@@ -10,6 +10,10 @@ Unreleased
 
 Changed
 ~~~~~~~
+- ``review --scan -d`` now also creates Gmail drafts for series reviewed
+  by an earlier scan without ``-d``, drafting them from the stored
+  reviews without reviewing again. ``-n`` previews which would be
+  drafted, and the summary reports how many were.
 - Review comments are no longer hard-wrapped: the agent is told to write
   each paragraph on a single line so the reader's mail client wraps it.
   Quoted ``> `` lines and indented code are left as they are.

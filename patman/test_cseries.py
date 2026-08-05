@@ -177,6 +177,48 @@ class TestCseries(unittest.TestCase, TestCommon):
             self.assertIn(alias, text)
         self.assertIn('--model', text)
 
+    def test_scan_draft_undrafted(self):
+        """--scan -d drafts reviewed series that have no Gmail draft yet"""
+        cser = self.get_database()
+        # Series A: reviewed, no draft yet
+        a = cser.db.series_add('a', 'Series A')
+        cser.db.series_set_source(a, 'review')
+        sva = cser.db.ser_ver_add(a, 1, link='100')
+        cser.db.review_add(sva, 1, 'comment', False, 't')
+        # Series B: reviewed and already drafted -- must be left alone
+        b = cser.db.series_add('b', 'Series B')
+        cser.db.series_set_source(b, 'review')
+        svb = cser.db.ser_ver_add(b, 1, link='200')
+        rid = cser.db.review_add(svb, 1, 'comment', False, 't')
+        cser.db.review_set_draft_id(rid, 'draft-xyz')
+        cser.commit()
+
+        args = Namespace(redraft=False, dry_run=False, create_drafts=True)
+        drafted = []
+
+        def fake_draft(args, reviews, series_data, pwork, cser_):
+            drafted.append(series_data['id'])
+
+        with mock.patch.object(review, '_fetch_series',
+                               side_effect=lambda pw, link: ({'id': link},)), \
+                mock.patch.object(review, '_draft_stored_reviews',
+                                  side_effect=fake_draft), \
+                terminal.capture():
+            n = review._draft_undrafted(args, None, cser)
+        # Only the undrafted series A is drafted
+        self.assertEqual(1, n)
+        self.assertEqual(['100'], drafted)
+
+        # Dry run counts it but drafts nothing
+        with mock.patch.object(review, '_draft_stored_reviews') as md, \
+                mock.patch.object(review, '_fetch_series') as mf, \
+                terminal.capture():
+            n = review._draft_undrafted(args, None, cser, dry_run=True)
+        self.assertEqual(1, n)
+        md.assert_not_called()
+        mf.assert_not_called()
+        cser.close_database()
+
     def test_scan_review_stats(self):
         """_review_stats counts patches, comments and approvals per series"""
         from patman import database

@@ -2831,6 +2831,45 @@ def _review_stats(cser, link):
     return num_patches, commented, approved
 
 
+def _draft_undrafted(args, pwork, cser, dry_run=False):
+    """Draft reviewed series whose reviews have no Gmail draft yet
+
+    Finds each reviewed series whose latest version has stored reviews
+    that are not yet in Gmail and creates the drafts from them, without
+    re-running the review. This catches up a series reviewed by '--scan'
+    without -d: run '--scan -d' again and the drafts are created.
+
+    Args:
+        args (Namespace): Command-line arguments
+        pwork (Patchwork): Configured patchwork instance
+        cser (Cseries): Open cseries instance
+        dry_run (bool): True to report what would be drafted, not draft it
+
+    Returns:
+        int: Number of series drafted (or that would be drafted)
+    """
+    review_ids = {ser.idnum for ser in
+                  cser.db.series_get_dict(reviews_only=True).values()}
+    count = 0
+    for svid, series_id, version in cser.db.series_get_all_max_versions():
+        if series_id not in review_ids:
+            continue
+        reviews = cser.db.review_get_for_version(svid)
+        if not reviews or not any(not rev.draft_id for rev in reviews):
+            continue
+        link = cser.db.ser_ver_get_link(series_id, version)
+        if not link:
+            continue
+        count += 1
+        if dry_run:
+            tout.notice(f'Would create Gmail drafts for link {link} '
+                        f'(v{version})')
+            continue
+        series_data = _fetch_series(pwork, link)[0]
+        _draft_stored_reviews(args, reviews, series_data, pwork, cser)
+    return count
+
+
 def _do_scan(args, pwork, cser):
     """Scan patchwork for new versions of already-reviewed series
 
@@ -2849,7 +2888,11 @@ def _do_scan(args, pwork, cser):
         int: 0 on success, 1 if any review failed
     """
     found = _scan_new_versions(pwork, cser)
-    if not found:
+    make_drafts = getattr(args, 'create_drafts', False)
+
+    # With -d we also catch up drafts for series reviewed earlier without
+    # it, so an empty scan is not the end of the story
+    if not found and not make_drafts:
         tout.notice('No new versions found')
         return 0
 
@@ -2874,8 +2917,11 @@ def _do_scan(args, pwork, cser):
     if getattr(args, 'dry_run', False):
         for new in to_review:
             tout.notice(f"Would review v{new.version} of '{new.desc}'")
+        drafted = (_draft_undrafted(args, pwork, cser, dry_run=True)
+                   if make_drafts else 0)
+        draft_str = f', {drafted} to draft' if make_drafts else ''
         tout.notice(f'Dry run: {len(found)} new, {total} to review, '
-                    f'{waiting} waiting, {skipped} skipped')
+                    f'{waiting} waiting, {skipped} skipped{draft_str}')
         return 0
 
     failed = 0
@@ -2913,8 +2959,14 @@ def _do_scan(args, pwork, cser):
                     f'  {new.link}: {n_patches} patches, {commented} with '
                     f'comments, {approved} approved - {new.desc}')
 
+    # Catch up drafts for series reviewed earlier without -d (the new
+    # versions just reviewed are drafted by their child run already)
+    drafted = _draft_undrafted(args, pwork, cser) if make_drafts else 0
+
+    draft_str = f', {drafted} drafted' if make_drafts else ''
     tout.notice(f'Scanned: {len(found)} new, {total - failed} reviewed, '
-                f'{waiting} waiting, {skipped} skipped, {failed} failed')
+                f'{waiting} waiting, {skipped} skipped, {failed} failed'
+                f'{draft_str}')
     return 1 if failed else 0
 
 

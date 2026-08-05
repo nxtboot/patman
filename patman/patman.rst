@@ -1697,8 +1697,17 @@ A patch counts as approved when its review approved it and as commented
 when the review requested changes; a patch the review had nothing to
 say about counts as neither.
 
+Add ``-d`` to create Gmail drafts as it goes. This also catches up any
+series reviewed by an earlier scan without ``-d``: their reviews are
+already stored, so ``patman review --scan -d`` drafts them from the
+database without reviewing them again. The one-line summary then ends
+with how many were drafted::
+
+    Scanned: 0 new, 0 reviewed, 0 waiting, 2 skipped, 0 failed, 13 drafted
+
 Use ``-n`` / ``--dry-run`` to see which series would be reviewed,
-waiting or skipped, without launching any reviews.
+waiting or skipped -- and, with ``-d``, which would be drafted --
+without launching any reviews or creating any drafts.
 
 Review lifecycle
 ----------------
