@@ -1098,7 +1098,9 @@ The key concepts are:
     Git supports multiple SMTP configurations via ``[sendemail "<name>"]``
     sections in ``.gitconfig``. An upstream can reference one of these
     identities so that patman passes ``--identity`` to ``git send-email``
-    automatically.
+    automatically. To pick one for a single run, or when you have no
+    upstream configured, pass ``patman send -I <identity>``; it overrides
+    the upstream's identity.
 
 **Series upstream**
     Each series can be associated with an upstream. When you send the series,

@@ -8,6 +8,12 @@ the project follows `Semantic Versioning <https://semver.org/>`_.
 Unreleased
 ----------
 
+Added
+~~~~~
+- ``send -I`` / ``--identity`` selects the git send-email identity (the
+  ``[sendemail "<identity>"]`` config section) for a single run,
+  overriding any identity configured on the upstream.
+
 Changed
 ~~~~~~~
 - ``review --scan -d`` now also creates Gmail drafts for series reviewed

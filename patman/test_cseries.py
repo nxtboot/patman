@@ -6106,6 +6106,22 @@ VERDICT: skip"""
         args = types.SimpleNamespace(send_endpoint_web=None, no_relay=False)
         self.assertIsNone(send_mod._send_endpoint(args))
 
+    def test_send_identity_arg(self):
+        """'send -I' sets the git send-email identity; absent leaves None"""
+        args = cmdline.parse_args(['send', '-I', 'chromium'],
+                                  config_fname=False)
+        self.assertEqual('chromium', args.identity)
+        args = cmdline.parse_args(['send', '--identity', 'x'],
+                                  config_fname=False)
+        self.assertEqual('x', args.identity)
+        # 'series send' shares the same argument
+        args = cmdline.parse_args(['series', 'send', '-I', 'y'],
+                                  config_fname=False)
+        self.assertEqual('y', args.identity)
+        # Absent -> None, so an upstream-configured identity still applies
+        args = cmdline.parse_args(['send'], config_fname=False)
+        self.assertIsNone(args.identity)
+
     def test_send_parse_cc_file(self):
         """Test parsing the MakeCcFile output, incl. names with spaces"""
         from patman import send as send_mod
