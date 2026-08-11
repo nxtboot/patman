@@ -927,7 +927,8 @@ def fix_patches(series, fnames, keep_change_id=False, insert_base_commit=False,
         count += 1
     print('Cleaned %d patch%s' % (count, 'es' if count > 1 else ''))
 
-def insert_cover_letter(fname, series, count, cwd=None):
+def insert_cover_letter(fname, series, count, cwd=None,
+                        insert_base_commit=True):
     """Inserts a cover letter with the required info into patch 0
 
     Args:
@@ -935,6 +936,8 @@ def insert_cover_letter(fname, series, count, cwd=None):
         series (Series): Series object
         count (int): Number of patches in the series
         cwd (str): Directory containing filename, or None for current
+        insert_base_commit (bool): True to add the 'base-commit'/'branch'
+            trailers before the signature
     """
     fname = os.path.join(cwd or '', fname)
     fil = open(fname, 'r')
@@ -948,6 +951,8 @@ def insert_cover_letter(fname, series, count, cwd=None):
 
     def _insert_base():
         """Write base-commit and branch trailers before the signature"""
+        if not insert_base_commit:
+            return
         if not series.base_commit and not series.branch:
             return
         # '---' separator line before the trailers for readability

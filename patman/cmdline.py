@@ -153,6 +153,12 @@ def add_send_args(par):
     par.add_argument(
         '--keep-change-id', action='store_true',
         help='Preserve Change-Id tags in patches to send.')
+    par.add_argument(
+        '--no-base-commit', action='store_false', dest='insert_base_commit',
+        default=True,
+        help="Don't add 'base-commit'/'branch' trailers to the patches or "
+             "cover letter (useful when the base commit is a local/downstream "
+             "sha that does not exist upstream)")
 
 
 def _add_show_comments(parser):

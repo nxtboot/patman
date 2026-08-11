@@ -387,6 +387,23 @@ Changes in v2:
         self.assertEqual('base-commit: 1a44532', lines[pos - 3])
         self.assertEqual('branch: mybranch', lines[pos - 2])
 
+    def test_no_base_commit(self):
+        """Test that --no-base-commit suppresses the base-commit trailer"""
+        orig_text = self._get_text('test01.txt')
+        pos = orig_text.index(
+            'commit 5ab48490f03051875ab13d288a4bf32b507d76fd')
+        text = orig_text[:pos]
+        series = patchstream.get_metadata_for_test(text)
+        series.base_commit = Commit('1a44532')
+        series.branch = 'mybranch'
+        cover_fname, args = self._create_patches_for_test(series)
+        self.assertFalse(cover_fname)
+        with terminal.capture():
+            patchstream.fix_patches(series, args, insert_base_commit=False)
+        contents = tools.read_file(args[0], binary=False)
+        self.assertNotIn('base-commit:', contents)
+        self.assertNotIn('branch: mybranch', contents)
+
     def test_branch(self):
         """Test creating patches from a branch"""
         repo = self.make_git_tree()

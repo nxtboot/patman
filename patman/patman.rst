@@ -191,6 +191,16 @@ patman.py.  For reference, the useful ones (at the moment) shown below
     smtp_server: /path/to/sendmail
     patchwork_url: https://patchwork.ozlabs.org
 
+By default patman adds ``base-commit:`` and ``branch:`` trailers to the
+generated patches (or the cover letter). These record the commit that the
+series applies on top of. If you work on a local or downstream branch whose
+base commit does not exist in the upstream tree, these trailers are
+misleading, so you can suppress them with ``--no-base-commit`` on the command
+line, or permanently via::
+
+    [settings]
+    insert_base_commit: False
+
 If you want to adjust settings (or aliases) that affect just a single
 project you can add a section that looks like [project_settings] or
 [project_alias].  If you want to use tags for your linux work, you could do::
