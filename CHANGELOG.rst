@@ -8,6 +8,9 @@ the project follows `Semantic Versioning <https://semver.org/>`_.
 Unreleased
 ----------
 
+0.3.0 - 2026-09-27
+------------------
+
 Added
 ~~~~~
 - ``send -I`` / ``--identity`` selects the git send-email identity (the
