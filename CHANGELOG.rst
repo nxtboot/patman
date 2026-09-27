@@ -33,6 +33,11 @@ Changed
 
 Fixed
 ~~~~~
+- Creating Gmail drafts no longer fails with "Invalid Cc header" when a
+  patch's To/Cc headers were stored by patchwork as folded RFC 2047
+  ``unknown-8bit`` encoded words: the headers are now unfolded and
+  decoded (treating ``unknown-8bit`` as UTF-8), and the addresses
+  de-duplicated and re-encoded.
 - A review no longer restyles the author's quoted code: the cleanup
   that converts double quotes to single (to match our prose) skipped
   the ``> `` quoted lines, so a string literal such as ``"some_key"`` is
