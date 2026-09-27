@@ -25,6 +25,7 @@ from patman import control
 from patman import cser_helper
 from patman import review
 from patman import cseries
+from patman import gmail
 from patman.database import Pcommit
 from patman import database
 from patman import patchstream
@@ -5117,6 +5118,30 @@ Date:   .*
                                         '--create-drafts', pwork=pwork)
         output = out.getvalue()
         self.assertIn('Created 1 Gmail draft', output)
+
+    def test_review_draft_headers(self):
+        """Test decoding of mangled patchwork headers for Gmail drafts"""
+        # Raw 8-bit characters in a header end up as 'unknown-8bit' encoded
+        # words, which hide the addresses from Gmail
+        hdrs = {
+            'To': 'Peter Robinson <pbrobinson@gmail.com>,\n'
+                  ' Tom Rini <trini@konsulko.com>',
+            'Cc': '=?unknown-8bit?q?Tom_Rini_=3Ctrini=40konsulko=2Ecom=3E=2C_?='
+                  '\n\t=?unknown-8bit?q?=22Filip_Kokosi=C5=84ski=22_=3Cfilip'
+                  '=40example=2Ecom=3E=2C_u-boot=40lists=2Edenx=2Ede?=',
+        }
+        self.assertEqual(
+            'Peter Robinson <pbrobinson@gmail.com>, '
+            'Tom Rini <trini@konsulko.com>, '
+            '=?utf-8?q?Filip_Kokosi=C5=84ski?= <filip@example.com>, '
+            'u-boot@lists.denx.de',
+            gmail._build_cc(hdrs, 'u-boot@lists.denx.de'))
+
+        self.assertEqual('[PATCH] Kokosiński: fix',
+                         gmail._decode_hdr('=?utf-8?q?=5BPATCH=5D_Kokosi=C5=84'
+                                           'ski=3A_fix?='))
+        self.assertEqual('a@b.org, c@d.org',
+                         gmail._format_addrs([['a@b.org', 'c@d.org']]))
 
     def test_review_redraft(self):
         """Test --redraft recreates drafts for an already-reviewed series"""
