@@ -8,6 +8,41 @@ the project follows `Semantic Versioning <https://semver.org/>`_.
 Unreleased
 ----------
 
+Added
+~~~~~
+- ``send -I`` / ``--identity`` selects the git send-email identity (the
+  ``[sendemail "<identity>"]`` config section) for a single run,
+  overriding any identity configured on the upstream.
+
+Changed
+~~~~~~~
+- ``review --scan -d`` now also creates Gmail drafts for series reviewed
+  by an earlier scan without ``-d``, drafting them from the stored
+  reviews without reviewing again. ``-n`` previews which would be
+  drafted, and the summary reports how many were.
+- Review comments are no longer hard-wrapped: the agent is told to write
+  each paragraph on a single line so the reader's mail client wraps it.
+  Quoted ``> `` lines and indented code are left as they are.
+- The ``Created N Gmail draft(s)`` line (and the dry-run equivalent) now
+  names the review branch and the series link, so it is clear which
+  series the drafts belong to.
+- A review now answers each commit-message comment inline, right after
+  the quoted line it refers to, instead of quoting the whole message at
+  the top and then re-quoting individual lines again lower down. Code
+  comments still follow the quoted message with their diff hunk.
+
+Fixed
+~~~~~
+- Creating Gmail drafts no longer fails with "Invalid Cc header" when a
+  patch's To/Cc headers were stored by patchwork as folded RFC 2047
+  ``unknown-8bit`` encoded words: the headers are now unfolded and
+  decoded (treating ``unknown-8bit`` as UTF-8), and the addresses
+  de-duplicated and re-encoded.
+- A review no longer restyles the author's quoted code: the cleanup
+  that converts double quotes to single (to match our prose) skipped
+  the ``> `` quoted lines, so a string literal such as ``"some_key"`` is
+  reproduced faithfully instead of becoming ``'some_key'``.
+
 0.2.0 - 2026-07-15
 ------------------
 

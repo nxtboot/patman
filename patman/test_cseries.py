@@ -25,6 +25,7 @@ from patman import control
 from patman import cser_helper
 from patman import review
 from patman import cseries
+from patman import gmail
 from patman.database import Pcommit
 from patman import database
 from patman import patchstream
@@ -176,6 +177,48 @@ class TestCseries(unittest.TestCase, TestCommon):
         for alias in ('opus', 'sonnet', 'haiku'):
             self.assertIn(alias, text)
         self.assertIn('--model', text)
+
+    def test_scan_draft_undrafted(self):
+        """--scan -d drafts reviewed series that have no Gmail draft yet"""
+        cser = self.get_database()
+        # Series A: reviewed, no draft yet
+        a = cser.db.series_add('a', 'Series A')
+        cser.db.series_set_source(a, 'review')
+        sva = cser.db.ser_ver_add(a, 1, link='100')
+        cser.db.review_add(sva, 1, 'comment', False, 't')
+        # Series B: reviewed and already drafted -- must be left alone
+        b = cser.db.series_add('b', 'Series B')
+        cser.db.series_set_source(b, 'review')
+        svb = cser.db.ser_ver_add(b, 1, link='200')
+        rid = cser.db.review_add(svb, 1, 'comment', False, 't')
+        cser.db.review_set_draft_id(rid, 'draft-xyz')
+        cser.commit()
+
+        args = Namespace(redraft=False, dry_run=False, create_drafts=True)
+        drafted = []
+
+        def fake_draft(args, reviews, series_data, pwork, cser_):
+            drafted.append(series_data['id'])
+
+        with mock.patch.object(review, '_fetch_series',
+                               side_effect=lambda pw, link: ({'id': link},)), \
+                mock.patch.object(review, '_draft_stored_reviews',
+                                  side_effect=fake_draft), \
+                terminal.capture():
+            n = review._draft_undrafted(args, None, cser)
+        # Only the undrafted series A is drafted
+        self.assertEqual(1, n)
+        self.assertEqual(['100'], drafted)
+
+        # Dry run counts it but drafts nothing
+        with mock.patch.object(review, '_draft_stored_reviews') as md, \
+                mock.patch.object(review, '_fetch_series') as mf, \
+                terminal.capture():
+            n = review._draft_undrafted(args, None, cser, dry_run=True)
+        self.assertEqual(1, n)
+        md.assert_not_called()
+        mf.assert_not_called()
+        cser.close_database()
 
     def test_scan_review_stats(self):
         """_review_stats counts patches, comments and approvals per series"""
@@ -5076,6 +5119,30 @@ Date:   .*
         output = out.getvalue()
         self.assertIn('Created 1 Gmail draft', output)
 
+    def test_review_draft_headers(self):
+        """Test decoding of mangled patchwork headers for Gmail drafts"""
+        # Raw 8-bit characters in a header end up as 'unknown-8bit' encoded
+        # words, which hide the addresses from Gmail
+        hdrs = {
+            'To': 'Peter Robinson <pbrobinson@gmail.com>,\n'
+                  ' Tom Rini <trini@konsulko.com>',
+            'Cc': '=?unknown-8bit?q?Tom_Rini_=3Ctrini=40konsulko=2Ecom=3E=2C_?='
+                  '\n\t=?unknown-8bit?q?=22Filip_Kokosi=C5=84ski=22_=3Cfilip'
+                  '=40example=2Ecom=3E=2C_u-boot=40lists=2Edenx=2Ede?=',
+        }
+        self.assertEqual(
+            'Peter Robinson <pbrobinson@gmail.com>, '
+            'Tom Rini <trini@konsulko.com>, '
+            '=?utf-8?q?Filip_Kokosi=C5=84ski?= <filip@example.com>, '
+            'u-boot@lists.denx.de',
+            gmail._build_cc(hdrs, 'u-boot@lists.denx.de'))
+
+        self.assertEqual('[PATCH] Kokosiński: fix',
+                         gmail._decode_hdr('=?utf-8?q?=5BPATCH=5D_Kokosi=C5=84'
+                                           'ski=3A_fix?='))
+        self.assertEqual('a@b.org, c@d.org',
+                         gmail._format_addrs([['a@b.org', 'c@d.org']]))
+
     def test_review_redraft(self):
         """Test --redraft recreates drafts for an already-reviewed series"""
         self.get_cser()
@@ -5563,6 +5630,68 @@ VERDICT: skip"""
         self.assertLess(body.index('This commit-message comment.'),
                         body.index('This code comment.'))
 
+    def test_review_draft_location(self):
+        """The draft summary names the branch and series link"""
+        from patman.review import _draft_location, ReviewContext
+
+        ctx = ReviewContext(None, None, {'id': 511354})
+        ctx.branch_name = 'rockchip-fixes'
+        self.assertEqual(' (branch rockchip-fixes, link 511354)',
+                         _draft_location(ctx))
+
+        # Re-draft path: no branch, so just the link
+        ctx = ReviewContext(None, None, {'id': 511354})
+        self.assertEqual(' (link 511354)', _draft_location(ctx))
+
+        # Nothing known -> no suffix
+        self.assertEqual('', _draft_location(ReviewContext(None, None, {})))
+
+    def test_review_commit_msg_comment_inline(self):
+        """A commit-message comment is shown inline, not re-quoted below"""
+        from patman.review import format_review_email
+
+        ctx = self._make_review_ctx(author_name='Anshul Dalal',
+            author_email='anshuld@ti.com', date='2026-07-09',
+            signoff='Regards,\nSimon')
+        commit_message = ('fdt: fix phandles\n\n'
+                          'The phandles were not being copied.')
+        comments = [
+            ('> The phandles were not being copied.',
+             'Please use present tense.'),
+            ('> diff --git a/x b/x\n> @@ -1 +1 @@\n> +code',
+             'Drop the underscore.'),
+        ]
+        body = format_review_email(ctx, 'Anshul', 'changes_needed',
+                                   comments, commit_message)
+
+        # The quoted line appears once (in the top quote), with the comment
+        # right after it -- not re-quoted lower down
+        self.assertEqual(1, body.count('> The phandles were not being copied.'))
+        quoted = body.index('> The phandles were not being copied.')
+        msg_c = body.index('Please use present tense.')
+        code_c = body.index('Drop the underscore.')
+        self.assertLess(quoted, msg_c)
+        self.assertLess(msg_c, code_c)
+        # The code comment keeps its diff hunk and stays below the quote
+        self.assertLess(body.index('> diff --git a/x b/x'), code_c)
+
+    def test_review_commit_msg_comment_fallback(self):
+        """A comment whose quote is not in the message is shown below"""
+        from patman.review import format_review_email
+
+        ctx = self._make_review_ctx(author_name='Anshul Dalal',
+            author_email='anshuld@ti.com', date='2026-07-09')
+        commit_message = 'fdt: fix phandles\n\nThe body text.'
+        # The quote does not match any commit-message line
+        comments = [('> a line not in the message', 'A general note.')]
+        body = format_review_email(ctx, 'Anshul', 'changes_needed',
+                                   comments, commit_message)
+        # It is preserved below the quote, with its own quoted line
+        self.assertIn('> a line not in the message', body)
+        self.assertIn('A general note.', body)
+        self.assertLess(body.index('> The body text.'),
+                        body.index('A general note.'))
+
     def test_coverity_find_new_defects(self):
         """Test only defects absent from the base are reported as new"""
         from patman import coverity
@@ -6002,6 +6131,22 @@ VERDICT: skip"""
         args = types.SimpleNamespace(send_endpoint_web=None, no_relay=False)
         self.assertIsNone(send_mod._send_endpoint(args))
 
+    def test_send_identity_arg(self):
+        """'send -I' sets the git send-email identity; absent leaves None"""
+        args = cmdline.parse_args(['send', '-I', 'chromium'],
+                                  config_fname=False)
+        self.assertEqual('chromium', args.identity)
+        args = cmdline.parse_args(['send', '--identity', 'x'],
+                                  config_fname=False)
+        self.assertEqual('x', args.identity)
+        # 'series send' shares the same argument
+        args = cmdline.parse_args(['series', 'send', '-I', 'y'],
+                                  config_fname=False)
+        self.assertEqual('y', args.identity)
+        # Absent -> None, so an upstream-configured identity still applies
+        args = cmdline.parse_args(['send'], config_fname=False)
+        self.assertIsNone(args.identity)
+
     def test_send_parse_cc_file(self):
         """Test parsing the MakeCcFile output, incl. names with spaces"""
         from patman import send as send_mod
@@ -6102,9 +6247,25 @@ VERDICT: skip"""
         self.assertEqual("Normal 'text' stays",
                          cleanup_review_text("Normal 'text' stays"))
 
-        # Quoted diff lines not mangled
-        line = "> +\t`something`"
-        self.assertEqual('> +\tsomething', cleanup_review_text(line))
+        # Double-quoted short tokens in our own prose become single-quoted
+        self.assertEqual("Use 'handoff' here",
+                         cleanup_review_text('Use "handoff" here'))
+
+        # Quoted lines are reproduced verbatim: the author's code, with its
+        # exact quotes and any backticks, must not be restyled
+        self.assertEqual('> +\tkeyfile = "some_key";',
+                         cleanup_review_text('> +\tkeyfile = "some_key";'))
+        self.assertEqual('> +\t`something`',
+                         cleanup_review_text('> +\t`something`'))
+
+        # The fix applies within a full email: prose is cleaned, the quoted
+        # commit-message line keeps its double quotes
+        email = ('> +\tkeyfile = "some_key";\n\n'
+                 'Please quote "some_key" consistently')
+        self.assertEqual(
+            '> +\tkeyfile = "some_key";\n\n'
+            "Please quote 'some_key' consistently",
+            cleanup_review_text(email))
 
     def test_review_greeting_fallback(self):
         """Test greeting falls back to email when name is empty"""

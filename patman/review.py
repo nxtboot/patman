@@ -499,6 +499,10 @@ Rules:
   filenames, string literals, misspelled words, etc.) use single
   quotes: 'my_var' and 'handoff' not "my_var" or "handoff". Do not
   quote identifiers that are obviously code (e.g. CONFIG_FOO)
+- These quoting and spelling conventions are for YOUR comment text
+  only. In the '> ' quoted lines, reproduce the author's text exactly:
+  never change double quotes to single, add or remove quotes, or
+  restyle anything — a quote of "some_key" must stay "some_key"
 - Never put a period directly after a code identifier — rephrase,
   omit the period, or use an em dash to start the next clause
 - If another reviewer has already made a point, do NOT repeat it,
@@ -509,6 +513,9 @@ Rules:
 - Focus on logic, correctness, and design issues
 - If unsure about something, say so rather than guessing
 - Use {ctx.spelling} spelling in your comments
+- Write each comment paragraph on a single line — do not hard-wrap the
+  prose; the reader's mail client will wrap it. Keep the quoted '> '
+  lines and any indented code exactly as they are
 - Always end with exactly one VERDICT: line (approved or changes_needed)
 '''
 
@@ -627,12 +634,18 @@ Rules:
   filenames, string literals, misspelled words, etc.) use single
   quotes: 'my_var' and 'handoff' not "my_var" or "handoff". Do not
   quote identifiers that are obviously code (e.g. CONFIG_FOO)
+- These quoting and spelling conventions are for YOUR comment text
+  only. In the '> ' quoted lines, reproduce the author's text exactly:
+  never change double quotes to single, add or remove quotes, or
+  restyle anything — a quote of "some_key" must stay "some_key"
 - Never put a period directly after a code identifier — rephrase,
   omit the period, or use an em dash to start the next clause
 - Do NOT quote code fragments in the cover-letter reply — code
   belongs in the per-patch reviews. Describe series-level issues in
   prose only.
 - Use {ctx.spelling} spelling
+- Write each comment paragraph on a single line — do not hard-wrap the
+  prose; the reader's mail client will wrap it
 - Be brief — only raise series-level concerns, not per-patch nits
 - Do NOT repeat issues that belong on individual patches
 - VERDICT: skip means no cover letter reply will be sent
@@ -801,9 +814,39 @@ def _is_code_comment(hunk):
     return False
 
 
+def _match_quote_to_lines(hunk, msg_lines):
+    """Find where a commit-message comment's quote ends in the message
+
+    Args:
+        hunk (str): The comment's quoted lines, each '> '-prefixed
+        msg_lines (list of str): Lines of the commit message
+
+    Returns:
+        int or None: Index in msg_lines of the comment's last quoted line,
+            so the comment can be shown right after it; None if the quote
+            is not a commit-message quote or cannot be located there
+    """
+    if not hunk or not msg_lines:
+        return None
+    quoted = [re.sub(r'^> ?', '', ln) for ln in hunk.splitlines()]
+    quoted = [q for q in quoted if q.strip()]
+    if not quoted:
+        return None
+    target = quoted[-1]
+    for i, cl in enumerate(msg_lines):
+        if cl == target:
+            return i
+    return None
+
+
 def _format_with_comments(ctx, greeting, verdict, comments,
                           commit_message=None):
     """Format a review that has comments
+
+    Comments on the commit message are woven in right after the quoted
+    line they refer to (inline-reply style), rather than re-quoting that
+    line again lower down. Comments on the code (which quote a diff hunk)
+    follow the quoted commit message.
 
     Args:
         ctx (ReviewContext): Review context
@@ -821,12 +864,30 @@ def _format_with_comments(ctx, greeting, verdict, comments,
 
     lines.append(
         f'On {ctx.date}, {ctx.author_name} <{ctx.author_email}> wrote:')
+
+    # Place each commit-message comment after the message line it quotes;
+    # code comments (and any quote we cannot locate) go below the quote
+    msg_lines = commit_message.strip().splitlines() if commit_message else []
+    inline = {}
+    below = []
+    for hunk, comment in comments:
+        idx = (None if _is_code_comment(hunk)
+               else _match_quote_to_lines(hunk, msg_lines))
+        if idx is None:
+            below.append((hunk, comment))
+        else:
+            inline.setdefault(idx, []).append(comment)
+
     if commit_message:
-        msg_lines = commit_message.strip().splitlines()
+        # Quote at least the first 20 lines, and always as far as the last
+        # line that carries an inline comment
         max_quote = 20
-        for cl in msg_lines[:max_quote]:
+        limit = max(max_quote, max(inline) + 1 if inline else 0)
+        for i, cl in enumerate(msg_lines[:limit]):
             lines.append(f'> {cl}')
-        if len(msg_lines) > max_quote:
+            for comment in inline.get(i, []):
+                lines += ['', comment, '']
+        if len(msg_lines) > limit:
             lines.append('> [...]')
     diffstat = getattr(ctx, 'diffstat', None)
     if diffstat:
@@ -837,10 +898,10 @@ def _format_with_comments(ctx, greeting, verdict, comments,
                 lines.append(f'> {dl}')
     lines.append('')
 
-    # Comments on the commit message come before comments on the code.
-    # sorted() is stable, so the relative order within each group is kept
-    ordered = sorted(comments, key=lambda hc: _is_code_comment(hc[0]))
-    for hunk, comment in ordered:
+    # Keep commit-message comments (no diff header) before code comments;
+    # sorted() is stable, so the order within each group is preserved
+    below.sort(key=lambda hc: _is_code_comment(hc[0]))
+    for hunk, comment in below:
         if hunk:
             lines.append(hunk)
             lines.append('')
@@ -851,7 +912,8 @@ def _format_with_comments(ctx, greeting, verdict, comments,
         lines += [f'Reviewed-by: {ctx.reviewer_tag}', '']
     elif comments and ctx.signoff:
         lines += [ctx.signoff, '']
-    return '\n'.join(lines)
+    # Collapse any run of blank lines left by the inline insertion
+    return re.sub(r'\n{3,}', '\n\n', '\n'.join(lines))
 
 
 def format_review_email(ctx, greeting, verdict, comments,
@@ -891,24 +953,31 @@ def cleanup_review_text(text):
     Returns:
         str: Cleaned-up text
     """
-    # Replace backtick-quoted code with plain text: `foo` -> foo
-    text = re.sub(r'`([^`]+)`', r'\1', text)
+    def fix_line(line):
+        # Replace backtick-quoted code with plain text: `foo` -> foo
+        line = re.sub(r'`([^`]+)`', r'\1', line)
 
-    # Remove quotes around function references: 'func()' -> func()
-    text = re.sub(r"'(\w+\(\))'", r'\1', text)
+        # Remove quotes around function references: 'func()' -> func()
+        line = re.sub(r"'(\w+\(\))'", r'\1', line)
 
-    # Remove double quotes around function references: "func()" -> func()
-    text = re.sub(r'"(\w+\(\))"', r'\1', text)
+        # Remove double quotes around function references: "func()" -> func()
+        line = re.sub(r'"(\w+\(\))"', r'\1', line)
 
-    # Convert double-quoted short tokens to single quotes:
-    # "handoff" -> 'handoff'. Leave longer quoted text (full sentences
-    # or phrases) alone, since they may be intentional quotations.
-    text = re.sub(r'"([^"\n]{1,40})"',
-                  lambda m: f"'{m.group(1)}'"
-                  if ' ' not in m.group(1) else m.group(0),
-                  text)
+        # Convert double-quoted short tokens to single quotes:
+        # "handoff" -> 'handoff'. Leave longer quoted text (full sentences
+        # or phrases) alone, since they may be intentional quotations.
+        line = re.sub(r'"([^"\n]{1,40})"',
+                      lambda m: f"'{m.group(1)}'"
+                      if ' ' not in m.group(1) else m.group(0),
+                      line)
+        return line
 
-    return text
+    # Quoted lines ('> ...') reproduce the author's commit message and diff
+    # verbatim, so must keep their exact characters -- including " vs ' and
+    # any backticks -- rather than being restyled to our prose conventions.
+    # Only clean up our own text
+    return '\n'.join(line if line.startswith('>') else fix_line(line)
+                     for line in text.split('\n'))
 
 
 _REFINE_REVIEWS_PROMPT = '''You are editing draft code-review \
@@ -938,6 +1007,10 @@ RULES:
 - Do not change Reviewed-by tags, attribution lines, quoted commit
   messages, or quoted diff hunks. These are structural parts of the
   email that must be preserved exactly.
+- Do not hard-wrap the prose. Write each comment paragraph on a single
+  line and let the reader's mail client wrap it; keep one blank line
+  between paragraphs. Leave the quoted '> ' lines and any indented code
+  block exactly as they are — do not join or re-wrap those.
 
 OUTPUT FORMAT:
 Return each review separated by a line containing only '---SEQ N---'
@@ -1655,6 +1728,25 @@ def search_series(pwork, title, version=None):
     return str(best['id'])
 
 
+def _draft_location(ctx):
+    """Describe the branch and series a batch of drafts belongs to
+
+    Args:
+        ctx (ReviewContext): Review context
+
+    Returns:
+        str: A ' (branch <name>, link <id>)' suffix with whichever parts
+            are known, or '' if neither is (e.g. a re-draft with no branch)
+    """
+    parts = []
+    if getattr(ctx, 'branch_name', None):
+        parts.append(f'branch {ctx.branch_name}')
+    link = ctx.series_data.get('id') if ctx.series_data else None
+    if link:
+        parts.append(f'link {link}')
+    return f' ({", ".join(parts)})' if parts else ''
+
+
 def create_drafts(ctx, args, review_bodies, review_ids):
     """Create Gmail drafts for review emails
 
@@ -1692,14 +1784,15 @@ def create_drafts(ctx, args, review_bodies, review_ids):
     draft_ids = gmail.create_review_drafts(ctx.series_data, to_draft,
         patch_headers=patch_headers, dry_run=args.dry_run,
         account=args.gmail_account, sender=sender)
+    where = _draft_location(ctx)
     if args.dry_run:
-        tout.notice(f'Dry run: would create {len(to_draft)} draft(s)')
+        tout.notice(f'Dry run: would create {len(to_draft)} draft(s){where}')
     else:
         for seq, draft_id in draft_ids.items():
             if seq in review_ids:
                 ctx.cser.db.review_set_draft_id(review_ids[seq], draft_id)
         ctx.cser.commit()
-        tout.notice(f'Created {len(draft_ids)} Gmail draft(s)')
+        tout.notice(f'Created {len(draft_ids)} Gmail draft(s){where}')
 
 
 def _parse_reviewer(args):
@@ -2738,6 +2831,45 @@ def _review_stats(cser, link):
     return num_patches, commented, approved
 
 
+def _draft_undrafted(args, pwork, cser, dry_run=False):
+    """Draft reviewed series whose reviews have no Gmail draft yet
+
+    Finds each reviewed series whose latest version has stored reviews
+    that are not yet in Gmail and creates the drafts from them, without
+    re-running the review. This catches up a series reviewed by '--scan'
+    without -d: run '--scan -d' again and the drafts are created.
+
+    Args:
+        args (Namespace): Command-line arguments
+        pwork (Patchwork): Configured patchwork instance
+        cser (Cseries): Open cseries instance
+        dry_run (bool): True to report what would be drafted, not draft it
+
+    Returns:
+        int: Number of series drafted (or that would be drafted)
+    """
+    review_ids = {ser.idnum for ser in
+                  cser.db.series_get_dict(reviews_only=True).values()}
+    count = 0
+    for svid, series_id, version in cser.db.series_get_all_max_versions():
+        if series_id not in review_ids:
+            continue
+        reviews = cser.db.review_get_for_version(svid)
+        if not reviews or not any(not rev.draft_id for rev in reviews):
+            continue
+        link = cser.db.ser_ver_get_link(series_id, version)
+        if not link:
+            continue
+        count += 1
+        if dry_run:
+            tout.notice(f'Would create Gmail drafts for link {link} '
+                        f'(v{version})')
+            continue
+        series_data = _fetch_series(pwork, link)[0]
+        _draft_stored_reviews(args, reviews, series_data, pwork, cser)
+    return count
+
+
 def _do_scan(args, pwork, cser):
     """Scan patchwork for new versions of already-reviewed series
 
@@ -2756,7 +2888,11 @@ def _do_scan(args, pwork, cser):
         int: 0 on success, 1 if any review failed
     """
     found = _scan_new_versions(pwork, cser)
-    if not found:
+    make_drafts = getattr(args, 'create_drafts', False)
+
+    # With -d we also catch up drafts for series reviewed earlier without
+    # it, so an empty scan is not the end of the story
+    if not found and not make_drafts:
         tout.notice('No new versions found')
         return 0
 
@@ -2781,8 +2917,11 @@ def _do_scan(args, pwork, cser):
     if getattr(args, 'dry_run', False):
         for new in to_review:
             tout.notice(f"Would review v{new.version} of '{new.desc}'")
+        drafted = (_draft_undrafted(args, pwork, cser, dry_run=True)
+                   if make_drafts else 0)
+        draft_str = f', {drafted} to draft' if make_drafts else ''
         tout.notice(f'Dry run: {len(found)} new, {total} to review, '
-                    f'{waiting} waiting, {skipped} skipped')
+                    f'{waiting} waiting, {skipped} skipped{draft_str}')
         return 0
 
     failed = 0
@@ -2820,8 +2959,14 @@ def _do_scan(args, pwork, cser):
                     f'  {new.link}: {n_patches} patches, {commented} with '
                     f'comments, {approved} approved - {new.desc}')
 
+    # Catch up drafts for series reviewed earlier without -d (the new
+    # versions just reviewed are drafted by their child run already)
+    drafted = _draft_undrafted(args, pwork, cser) if make_drafts else 0
+
+    draft_str = f', {drafted} drafted' if make_drafts else ''
     tout.notice(f'Scanned: {len(found)} new, {total - failed} reviewed, '
-                f'{waiting} waiting, {skipped} skipped, {failed} failed')
+                f'{waiting} waiting, {skipped} skipped, {failed} failed'
+                f'{draft_str}')
     return 1 if failed else 0
 
 

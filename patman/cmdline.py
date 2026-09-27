@@ -129,6 +129,12 @@ def add_send_args(par):
         '--smtp-server', type=str,
         help="Specify the SMTP server to 'git send-email'")
     par.add_argument(
+        '-I', '--identity', type=str, default=None,
+        help='Git send-email identity to use -- the [sendemail '
+             '"<identity>"] config section, e.g. \'chromium\'. Overrides '
+             "the upstream's configured identity; ignored when sending via "
+             'a web relay')
+    par.add_argument(
         '--send-endpoint-web', dest='send_endpoint_web', type=str,
         default=None,
         help='Web submission endpoint to relay patches through instead of '

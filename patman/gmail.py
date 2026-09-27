@@ -15,7 +15,9 @@ sessions.
 import base64
 from collections import namedtuple
 import os
+from email.header import Header, decode_header
 from email.mime.text import MIMEText
+from email.utils import formataddr, getaddresses
 
 from u_boot_pylib import tout
 
@@ -299,7 +301,8 @@ def create_draft(service, to, subject, body,
     if sender:
         msg['from'] = sender
     msg['to'] = to
-    msg['subject'] = subject
+    msg['subject'] = (subject if subject.isascii() else
+                      Header(subject, 'utf-8'))
     if cc:
         msg['cc'] = cc
     if in_reply_to:
@@ -342,6 +345,55 @@ def delete_draft(service, draft_id):
             raise
 
 
+def _decode_hdr(val):
+    """Decode and unfold an email header value
+
+    Headers from patchwork may be folded and may contain RFC 2047 encoded
+    words, sometimes with the bogus charset 'unknown-8bit' (produced when
+    the original email has raw 8-bit characters in a header). Such values
+    are rejected by Gmail, so decode them to plain text, treating
+    'unknown-8bit' as UTF-8
+
+    Args:
+        val (str or list of str): Header value, or list of values if the
+            header appears more than once
+
+    Returns:
+        str: Decoded, unfolded header value
+    """
+    if isinstance(val, list):
+        return ', '.join(_decode_hdr(v) for v in val)
+    val = ' '.join(val.split())
+    out = []
+    for part, charset in decode_header(val):
+        if isinstance(part, bytes):
+            if not charset or charset == 'unknown-8bit':
+                charset = 'utf-8'
+            part = part.decode(charset, errors='replace')
+        out.append(part)
+    return ''.join(out)
+
+
+def _format_addrs(vals):
+    """Parse and re-encode a list of address-header values
+
+    Args:
+        vals (list of str): Header values, each with one or more addresses
+
+    Returns:
+        str: Comma-separated addresses, deduplicated, with any non-ASCII
+            names encoded suitably for an email header
+    """
+    seen = set()
+    addrs = []
+    for name, addr in getaddresses([_decode_hdr(v) for v in vals if v]):
+        if not addr or addr.lower() in seen:
+            continue
+        seen.add(addr.lower())
+        addrs.append(formataddr((name, addr), charset='utf-8'))
+    return ', '.join(addrs)
+
+
 def _build_cc(headers, list_email):
     """Build a CC list from the original patch headers
 
@@ -355,14 +407,10 @@ def _build_cc(headers, list_email):
     Returns:
         str: Comma-separated CC addresses
     """
-    addrs = []
-    for field in ('To', 'Cc'):
-        val = headers.get(field, '')
-        if val:
-            addrs.append(val)
-    if list_email and list_email not in ', '.join(addrs):
-        addrs.append(list_email)
-    return ', '.join(addrs)
+    vals = [headers.get(field, '') for field in ('To', 'Cc')]
+    if list_email:
+        vals.append(list_email)
+    return _format_addrs(vals)
 
 
 def _get_msgid(patch_data, hdrs):
@@ -394,13 +442,13 @@ def _make_draft(params, patch_data, body, hdrs, refs=None):
     Returns:
         str or None: Gmail draft ID, or None for dry run
     """
-    subject = hdrs.get('Subject', patch_data.get('name', ''))
+    subject = _decode_hdr(hdrs.get('Subject', patch_data.get('name', '')))
     if not subject.startswith('Re: '):
         subject = f"Re: {subject}"
     msgid = _get_msgid(patch_data, hdrs)
     if refs is None:
         refs = msgid
-    to_addr = hdrs.get('Reply-To', params.fallback_addr)
+    to_addr = _format_addrs([hdrs.get('Reply-To') or params.fallback_addr])
     cc = _build_cc(hdrs, params.list_email)
     if params.dry_run:
         tout.notice(f"Would create draft: {subject}")
