@@ -167,6 +167,20 @@ class TestCseries(unittest.TestCase, TestCommon):
                 review._agent_options(model='opus')
                 self.assertEqual('opus', captured.get('model'))
 
+    def test_agent_options_cli_path(self):
+        """_agent_options uses the installed claude, if any"""
+        with mock.patch.object(review, 'ClaudeAgentOptions',
+                               side_effect=lambda **kw: kw):
+            with mock.patch('shutil.which', return_value='/bin/claude'):
+                self.assertEqual('/bin/claude',
+                                 review._agent_options()['cli_path'])
+                self.assertEqual('/x/claude', review._agent_options(
+                    cli_path='/x/claude')['cli_path'])
+
+            # With no installed claude, the SDK picks its bundled one
+            with mock.patch('shutil.which', return_value=None):
+                self.assertNotIn('cli_path', review._agent_options())
+
     def test_review_list_models(self):
         """--list-models prints the accepted aliases and exits cleanly"""
         args = Namespace(list_models=True, model=None)

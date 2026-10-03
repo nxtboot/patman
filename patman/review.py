@@ -60,6 +60,11 @@ def _agent_options(**kwargs):
     always uses the intended model even if the user's default is something
     else. With no model selected the SDK default is used unchanged.
 
+    The SDK prefers the Claude Code CLI bundled with it, which may be too
+    old to use the current models. Use the installed 'claude' instead, if
+    there is one, so that updating Claude Code is enough to keep reviews
+    working.
+
     Args:
         kwargs: Fields to pass to ClaudeAgentOptions
 
@@ -68,6 +73,9 @@ def _agent_options(**kwargs):
     """
     if _AGENT_MODEL:
         kwargs.setdefault('model', _AGENT_MODEL)
+    cli = shutil.which('claude')
+    if cli:
+        kwargs.setdefault('cli_path', cli)
     return ClaudeAgentOptions(**kwargs)
 
 
