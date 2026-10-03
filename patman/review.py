@@ -1777,6 +1777,13 @@ def create_drafts(ctx, args, review_bodies, review_ids):
 
     async def _fetch_patch_headers():
         async with aiohttp.ClientSession() as client:
+            # Fetch the cover letter's headers too (index 0) so its review
+            # reply carries the original To and Cc -- a full reply-all --
+            # rather than going just to the submitter and the list
+            cover = ctx.series_data.get('cover_letter')
+            if cover and cover.get('id'):
+                data = await ctx.pwork.get_cover(client, str(cover['id']))
+                patch_headers[0] = data.get('headers', {})
             for i, patch in enumerate(patches):
                 data = await ctx.pwork.get_patch(client, str(patch['id']))
                 patch_headers[i + 1] = data.get('headers', {})
