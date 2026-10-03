@@ -5011,6 +5011,36 @@ Date:   .*
         result = cser.db.series_find_by_link(str(self.REVIEW_LINK_V2))
         self.assertIsNotNone(result)
 
+    def test_review_apply_all_upstream(self):
+        """Applying 0 patches (all already upstream) is a clean skip"""
+        ctx = mock.Mock()
+        ctx.branch_name = 'pw-526073-review'
+        ctx.upstream_branch = 'us/next'
+        ctx.repo_path = '/tmp/x'
+        ctx.series_id = 5
+        ctx.version = 1
+        with mock.patch('patman.review.apply_series_sync',
+                        return_value=(True, None)), \
+                mock.patch('patman.review.gitutil.count_revs',
+                           return_value=0), \
+                terminal.capture():
+            result = review._apply_and_check(ctx, '526073')
+        # None means 'nothing to review', not a failure
+        self.assertIsNone(result)
+        ctx.cser.db.ser_ver_remove.assert_called_once_with(5, 1)
+
+    def test_review_apply_failure(self):
+        """A genuine apply failure still returns False"""
+        ctx = mock.Mock()
+        ctx.series_id = 5
+        ctx.version = 1
+        with mock.patch('patman.review.apply_series_sync',
+                        return_value=(False, None)), \
+                terminal.capture():
+            result = review._apply_and_check(ctx, '526073')
+        self.assertFalse(result)
+        ctx.cser.db.ser_ver_remove.assert_called_once_with(5, 1)
+
     def test_review_search_series_version(self):
         """Test -V selects a specific version when searching by title"""
         from patman import review as review_mod
