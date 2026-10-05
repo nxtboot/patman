@@ -167,6 +167,20 @@ class TestCseries(unittest.TestCase, TestCommon):
                 review._agent_options(model='opus')
                 self.assertEqual('opus', captured.get('model'))
 
+    def test_agent_options_cli_path(self):
+        """_agent_options uses the installed claude, if any"""
+        with mock.patch.object(review, 'ClaudeAgentOptions',
+                               side_effect=lambda **kw: kw):
+            with mock.patch('shutil.which', return_value='/bin/claude'):
+                self.assertEqual('/bin/claude',
+                                 review._agent_options()['cli_path'])
+                self.assertEqual('/x/claude', review._agent_options(
+                    cli_path='/x/claude')['cli_path'])
+
+            # With no installed claude, the SDK picks its bundled one
+            with mock.patch('shutil.which', return_value=None):
+                self.assertNotIn('cli_path', review._agent_options())
+
     def test_review_list_models(self):
         """--list-models prints the accepted aliases and exits cleanly"""
         args = Namespace(list_models=True, model=None)
@@ -4996,6 +5010,69 @@ Date:   .*
         self.db_open()
         result = cser.db.series_find_by_link(str(self.REVIEW_LINK_V2))
         self.assertIsNotNone(result)
+
+    def test_review_apply_all_upstream(self):
+        """Applying 0 patches (all already upstream) is a clean skip"""
+        ctx = mock.Mock()
+        ctx.branch_name = 'pw-526073-review'
+        ctx.upstream_branch = 'us/next'
+        ctx.repo_path = '/tmp/x'
+        ctx.series_id = 5
+        ctx.version = 1
+        with mock.patch('patman.review.apply_series_sync',
+                        return_value=(True, None)), \
+                mock.patch('patman.review.gitutil.count_revs',
+                           return_value=0), \
+                terminal.capture():
+            result = review._apply_and_check(ctx, '526073')
+        # None means 'nothing to review', not a failure
+        self.assertIsNone(result)
+        ctx.cser.db.ser_ver_remove.assert_called_once_with(5, 1)
+
+    def test_review_apply_failure(self):
+        """A genuine apply failure still returns False"""
+        ctx = mock.Mock()
+        ctx.series_id = 5
+        ctx.version = 1
+        with mock.patch('patman.review.apply_series_sync',
+                        return_value=(False, None)), \
+                terminal.capture():
+            result = review._apply_and_check(ctx, '526073')
+        self.assertFalse(result)
+        ctx.cser.db.ser_ver_remove.assert_called_once_with(5, 1)
+
+    def test_review_drafts_fetch_cover_headers(self):
+        """Drafts fetch the cover's headers so its reply is a reply-all"""
+        from unittest.mock import AsyncMock
+
+        pwork = mock.Mock()
+        pwork.get_cover = AsyncMock(
+            return_value={'headers': {'To': 'list@x', 'Cc': 'maint@x'}})
+        pwork.get_patch = AsyncMock(
+            return_value={'headers': {'Message-Id': '<1@x>'}})
+        ctx = types.SimpleNamespace(
+            pwork=pwork, cser=mock.Mock(), branch_name='b', series_id=1,
+            reviewer_email=None,
+            series_data={'cover_letter': {'id': 99},
+                         'patches': [{'id': 1}]})
+        args = Namespace(dry_run=True, gmail_account=None)
+
+        captured = {}
+
+        def fake_crd(series_data, bodies, patch_headers=None, **kw):
+            captured['ph'] = patch_headers
+            return {}
+
+        with mock.patch.object(review.gmail, 'create_review_drafts',
+                               side_effect=fake_crd), \
+                terminal.capture():
+            review.create_drafts(ctx, args, {0: 'cov', 1: 'pat'},
+                                 {0: 10, 1: 11})
+
+        pwork.get_cover.assert_awaited_once_with(mock.ANY, '99')
+        # The cover letter's headers land at index 0, carrying To and Cc
+        self.assertEqual({'To': 'list@x', 'Cc': 'maint@x'},
+                         captured['ph'][0])
 
     def test_review_search_series_version(self):
         """Test -V selects a specific version when searching by title"""

@@ -14,6 +14,16 @@ Fixed
   package rather than as a top-level package, where it shadowed U-Boot's own
   copy for U-Boot's tools in the same environment and clashed with other
   packages which provide it, such as ``binary-manager`` and ``buildman``.
+- The cover-letter review reply now goes to the whole original audience.
+  Its headers were never fetched, so the reply listed only the submitter
+  and the mailing list and dropped the original To and Cc. Fetch the
+  cover's headers, as the per-patch replies already do, so the reply is
+  a proper reply-all.
+- ``review`` no longer fails with "Failed to apply patches to branch"
+  when a series is already applied upstream. If the apply step runs to
+  completion but applies nothing (every patch is already present), that
+  is now treated as "nothing to review" and the command exits cleanly
+  instead of reporting an error.
 
 0.3.0 - 2026-09-27
 ------------------

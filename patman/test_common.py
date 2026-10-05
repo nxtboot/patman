@@ -7,6 +7,7 @@
 import os
 import shutil
 import tempfile
+from unittest import mock
 
 import pygit2
 
@@ -64,12 +65,18 @@ class TestCommon:
         """Set up the test temporary dir and git dir"""
         self.tmpdir = tempfile.mkdtemp(prefix='patman.')
         self.gitdir = os.path.join(self.tmpdir, '.git')
+
+        # Make sure the tests never touch the user's own database
+        self._env = mock.patch.dict(os.environ)
+        self._env.start()
+        os.environ.pop('PATMAN_DB_DIR', None)
         tout.init(tout.DEBUG if self.verbosity else tout.INFO,
                   allow_colour=False)
         tout.stdout_is_tty = False
 
     def tearDown(self):
         """Delete the temporary dir"""
+        self._env.stop()
         if self.preserve_outdirs:
             print(f'Output dir: {self.tmpdir}')
         else:

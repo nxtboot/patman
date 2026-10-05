@@ -60,6 +60,11 @@ def _agent_options(**kwargs):
     always uses the intended model even if the user's default is something
     else. With no model selected the SDK default is used unchanged.
 
+    The SDK prefers the Claude Code CLI bundled with it, which may be too
+    old to use the current models. Use the installed 'claude' instead, if
+    there is one, so that updating Claude Code is enough to keep reviews
+    working.
+
     Args:
         kwargs: Fields to pass to ClaudeAgentOptions
 
@@ -68,6 +73,9 @@ def _agent_options(**kwargs):
     """
     if _AGENT_MODEL:
         kwargs.setdefault('model', _AGENT_MODEL)
+    cli = shutil.which('claude')
+    if cli:
+        kwargs.setdefault('cli_path', cli)
     return ClaudeAgentOptions(**kwargs)
 
 
@@ -1769,6 +1777,13 @@ def create_drafts(ctx, args, review_bodies, review_ids):
 
     async def _fetch_patch_headers():
         async with aiohttp.ClientSession() as client:
+            # Fetch the cover letter's headers too (index 0) so its review
+            # reply carries the original To and Cc -- a full reply-all --
+            # rather than going just to the submitter and the list
+            cover = ctx.series_data.get('cover_letter')
+            if cover and cover.get('id'):
+                data = await ctx.pwork.get_cover(client, str(cover['id']))
+                patch_headers[0] = data.get('headers', {})
             for i, patch in enumerate(patches):
                 data = await ctx.pwork.get_patch(client, str(patch['id']))
                 patch_headers[i + 1] = data.get('headers', {})
@@ -2276,23 +2291,33 @@ def _apply_and_check(ctx, link):
         link (str): Patchwork series link/ID
 
     Returns:
-        bool: True if the patches applied cleanly
+        True if the patches applied cleanly, None if there was nothing to
+        apply because every patch is already upstream (a clean skip), or
+        False if applying failed
     """
     success, _ = apply_series_sync(ctx.pwork, link, ctx.branch_name,
         ctx.upstream_branch, ctx.repo_path)
 
-    if success:
-        applied = gitutil.count_revs(
-            ctx.repo_path, f'{ctx.upstream_branch}..{ctx.branch_name}')
-        if not applied:
-            # Zero commits, or branch missing because apply was interrupted
-            success = False
-
     if not success:
+        # The agent hit a real problem, or was interrupted (which leaves
+        # the branch missing); either way there is nothing to review
         tout.error('Failed to apply patches to branch')
         ctx.cser.db.ser_ver_remove(ctx.series_id, ctx.version)
         ctx.cser.commit()
         return False
+
+    applied = gitutil.count_revs(
+        ctx.repo_path, f'{ctx.upstream_branch}..{ctx.branch_name}')
+    if not applied:
+        # The agent ran to completion but applied nothing: every patch is
+        # already present upstream (a fresh checkout of an obsolete
+        # series). That is a valid outcome, not a failure -- there is
+        # simply nothing to review
+        tout.notice(f"Nothing to review for '{ctx.branch_name}': every "
+                    'patch is already applied upstream')
+        ctx.cser.db.ser_ver_remove(ctx.series_id, ctx.version)
+        ctx.cser.commit()
+        return None
     if applied != ctx.patch_count:
         # Common with kernel-import series: the agent legitimately skips
         # patches that are already applied upstream. Warn and proceed
@@ -2610,7 +2635,11 @@ def _review_link(args, pwork, cser, link):
         ctx.repo_path = gitutil.ensure_worktree(
             ctx.main_repo, wt_path, ctx.branch_name, ctx.upstream_branch)
 
-        if not _apply_and_check(ctx, link):
+        apply_ok = _apply_and_check(ctx, link)
+        if apply_ok is None:
+            # Every patch is already upstream; nothing to review
+            return 0
+        if not apply_ok:
             return 1
 
         if args.apply_only:
