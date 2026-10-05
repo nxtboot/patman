@@ -24,6 +24,11 @@ files live in ``scripts/`` and ``u_boot_pylib`` is vendored in the tree,
 so no surrounding U-Boot source is needed. ``checkpatch.pl`` does need
 ``perl`` to be installed.
 
+``u_boot_pylib`` lives in ``patman/_vendor/``, inside the ``patman`` package,
+so that installing patman does not clash with U-Boot's own copy or with other
+packages which provide it. ``patman/__init__.py`` adds that directory to the
+start of the import path, so the code still imports it by its usual name.
+
 Building the documentation
 --------------------------
 

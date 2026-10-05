@@ -57,7 +57,8 @@ Repository = "https://github.com/nxtboot/patman"
 patman = "patman.__main__:run_patman"
 
 [tool.setuptools]
-packages = ["patman", "u_boot_pylib"]
+# patman._vendor holds the vendored library (see patman/__init__.py)
+packages = ["patman", "patman._vendor.u_boot_pylib"]
 
 [tool.setuptools.package-data]
 patman = ["*.rst", "test/*"]

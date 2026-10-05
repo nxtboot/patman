@@ -14,11 +14,11 @@ import sys
 our_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(our_path, '..'))
 
-# Our modules
-from u_boot_pylib import test_util
-from u_boot_pylib import tout
+# Our modules. Import patman first, since it sets up the vendored libraries
 from patman import cmdline
 from patman import control
+from u_boot_pylib import test_util
+from u_boot_pylib import tout
 
 
 def run_patman():
