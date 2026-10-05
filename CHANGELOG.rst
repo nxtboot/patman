@@ -8,6 +8,13 @@ the project follows `Semantic Versioning <https://semver.org/>`_.
 Unreleased
 ----------
 
+Fixed
+~~~~~
+- The bundled ``u_boot_pylib`` library is installed inside the ``patman``
+  package rather than as a top-level package, where it shadowed U-Boot's own
+  copy for U-Boot's tools in the same environment and clashed with other
+  packages which provide it, such as ``binary-manager`` and ``buildman``.
+
 0.3.0 - 2026-09-27
 ------------------
 
