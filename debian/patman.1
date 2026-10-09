@@ -1,0 +1,55 @@
+.TH PATMAN 1 "October 2026" "patman 0.3.1" "User Commands"
+.SH NAME
+patman \- create, check and email patch series with Patchwork integration
+.SH SYNOPSIS
+.B patman
+.RI [ global-options ]
+.I command
+.RI [ command-options ]
+.SH DESCRIPTION
+Patman helps you create, send, track and review patch series for projects
+that take patches by email, such as U-Boot and the Linux kernel.
+.PP
+It creates patches from a git branch, cleans them up by removing unwanted
+tags, inserts a cover letter with change logs, runs the patches through
+checkpatch and its own checks, and emails them out with
+.B git send-email
+or, where there is no working SMTP, through a web relay.  It can also track
+a series on Patchwork and gather review tags into the commits.
+.SH COMMANDS
+.TP
+.B send
+Format, check and email the patches.  This is the default command.
+.TP
+.B series
+Manage local series and follow their Patchwork status across versions.
+.TP
+.B patchwork
+Manage the connection to a Patchwork server.
+.TP
+.B review
+AI-review a Patchwork series and store or send the result.
+.TP
+.B status
+Show the Patchwork status of a series and gather its review tags.
+.TP
+.B upstream
+Manage the upstream trees that series are sent to.
+.PP
+Run
+.BI "patman " command " \-\-help"
+for the options of a particular command.
+.SH FILES
+.TP
+.B .patman
+Per-repository configuration at the top of the git tree.  It overrides
+.B ~/.patman
+(the user's global configuration) which in turn overrides the project's
+tracked
+.BR .patman-defaults .
+.SH SEE ALSO
+Full documentation is published at
+.UR https://patman.readthedocs.io/
+.UE .
+.SH AUTHOR
+Patman was written by Simon Glass <sjg@chromium.org> and contributors.
