@@ -1,0 +1,20 @@
+Description: Drop PEP 639 license metadata for the package build
+ setuptools in Debian/Ubuntu stable predates PEP 639 and rejects the SPDX
+ license string in [project]; meanwhile very new setuptools is phasing out
+ the classic table form. Drop the license keys for the build and rely on
+ debian/copyright for the authoritative licensing, so the package builds
+ across setuptools versions.
+Author: Simon Glass <sjg@chromium.org>
+Forwarded: not-needed
+Last-Update: 2026-10-09
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -11,8 +11,6 @@
+ description = "Create, check and email patch series, with Patchwork integration"
+ readme = "README.rst"
+ requires-python = ">=3.9"
+-license = "GPL-2.0-or-later"
+-license-files = ["LICENSE"]
+ keywords = ["patch", "email", "git", "patchwork", "u-boot", "review"]
+ classifiers = [
+     "Programming Language :: Python :: 3",

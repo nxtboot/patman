@@ -1,0 +1,3 @@
+Test-Command: patman --help && patman review --list-models
+Depends: @, python3-patatt
+Restrictions: allow-stderr
