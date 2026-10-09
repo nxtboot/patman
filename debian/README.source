@@ -1,0 +1,37 @@
+patch-manager for Debian
+========================
+
+Building the source package
+---------------------------
+Build the source package from a clean checkout, not a working development
+tree: a virtualenv (.venv/), an editor socket or a patman database left in
+the tree makes dpkg-source fail.  From a fresh clone of the upstream git
+repository:
+
+    tops=$(git ls-tree --name-only HEAD | grep -v '^debian$')
+    git archive --prefix=patch-manager-<version>/ \
+        -o ../patch-manager_<version>.orig.tar.gz HEAD $tops
+    debuild -S
+
+The orig tarball is the upstream tree without the debian/ directory.
+
+Naming
+------
+Upstream ships on PyPI as "patch-manager"; this source package keeps that
+name.  The binary package is called "patman", after the command it provides.
+
+debian/patches
+--------------
+0001-drop-pep639-license-metadata.patch removes the [project] license keys
+from pyproject.toml for the build.  Debian and Ubuntu stable ship a
+setuptools that predates PEP 639 and rejects the SPDX license string, while
+very new setuptools is phasing out the classic table form; dropping the keys
+builds across both.  debian/copyright is the authoritative licensing.
+
+The AI review feature
+---------------------
+patman's optional "review" command needs the claude-agent-sdk, which is not
+packaged in Debian; it is therefore not a dependency and that feature is
+unavailable in the packaged tool.  Everything else -- creating, checking and
+sending patches with git send-email or a web relay, and tracking a series on
+Patchwork -- works normally.
