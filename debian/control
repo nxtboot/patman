@@ -1,0 +1,39 @@
+Source: patch-manager
+Section: vcs
+Priority: optional
+Maintainer: Simon Glass <sjg@chromium.org>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-sequence-python3,
+ pybuild-plugin-pyproject,
+ python3-all,
+ python3-setuptools,
+Standards-Version: 4.7.0
+Homepage: https://github.com/nxtboot/patman
+Rules-Requires-Root: no
+
+Package: patman
+Architecture: all
+Depends:
+ ${python3:Depends},
+ ${misc:Depends},
+ python3-aiohttp,
+ python3-patatt,
+ python3-pygit2,
+Suggests:
+ python3-googleapi,
+ python3-google-auth-httplib2,
+ python3-google-auth-oauthlib,
+Description: create, check and email patch series with Patchwork integration
+ Patman helps you create, send, track and review patch series for projects
+ that take patches by email, such as U-Boot and the Linux kernel.
+ .
+ It creates patches from a git branch, cleans them up by removing unwanted
+ tags, inserts a cover letter with change logs, runs the patches through
+ checkpatch and its own checks, and emails them out -- with git send-email
+ or, where there is no working SMTP, through a web relay.  It can also track
+ a series on Patchwork and gather review tags into the commits.
+ .
+ The web-relay send path attests each message with patatt.  The optional AI
+ review feature needs the claude-agent-sdk, which is not packaged in Debian
+ and so is not pulled in here.

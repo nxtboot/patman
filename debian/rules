@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME=patch-manager
+
+# The test suite pulls in optional, partly unpackaged dependencies (the
+# claude-agent-sdk for review) and expects network access, so it is not run
+# at build time; debian/tests runs a smoke test instead
+export PYBUILD_DISABLE=test
+
+%:
+	dh $@ --buildsystem=pybuild

@@ -1,0 +1,6 @@
+patch-manager (0.3.1-1) unstable; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+    TODO: replace #XXXXXX with the ITP (wnpp) bug number before upload.
+
+ -- Simon Glass <sjg@chromium.org>  Fri, 09 Oct 2026 06:22:48 -0600
