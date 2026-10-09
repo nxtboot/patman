@@ -1,7 +1,8 @@
 Source: patch-manager
 Section: vcs
 Priority: optional
-Maintainer: Simon Glass <sjg@chromium.org>
+Maintainer: Debian Python Team <team+python@tracker.debian.org>
+Uploaders: Simon Glass <sjg@chromium.org>
 Build-Depends:
  debhelper-compat (= 13),
  dh-sequence-python3,
