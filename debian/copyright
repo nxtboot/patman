@@ -10,18 +10,6 @@ Copyright: 2011-2026 The Chromium OS Authors
            2025-2026 Simon Glass <sjg@chromium.org>
 License: GPL-2+
 
-Files: patman/_vendor/u_boot_pylib/*
-Copyright: 2011-2026 The Chromium OS Authors
-           2016-2025 Google LLC
-           2025 Canonical Ltd.
-           2026 Simon Glass <sjg@chromium.org>
-License: GPL-2+
-
-Files: patman/_vendor/u_boot_pylib/cros_subprocess.py
-Copyright: 2003-2005 Peter Astrand <astrand@lysator.liu.se>
-           2011 The Chromium OS Authors
-License: GPL-2+
-
 Files: debian/*
 Copyright: 2026 Simon Glass <sjg@chromium.org>
 License: GPL-2+

@@ -75,8 +75,8 @@ Run the test suite from a checkout::
     patman test
 
 The suite is self-contained: a pinned ``checkpatch.pl`` and its helper files
-live in ``scripts/``, and the bundled ``u_boot_pylib`` package is vendored in
-the tree, so no surrounding U-Boot source is required.
+live in ``scripts/``, and ``u_boot_pylib`` is installed from PyPI as
+``u-boot-pylib``, so no surrounding U-Boot source is required.
 
 Build the documentation locally with::
 

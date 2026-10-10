@@ -8,3 +8,4 @@ importlib_resources==7.1.0
 pygit2==1.18.2
 requests==2.34.2
 setuptools==84.0.0
+u-boot-pylib==0.1.0

@@ -20,14 +20,10 @@ Running the tests
     patman test <name>          # a single test, e.g. test_series_send
 
 The suite is self-contained: a pinned ``checkpatch.pl`` and its helper
-files live in ``scripts/`` and ``u_boot_pylib`` is vendored in the tree,
-so no surrounding U-Boot source is needed. ``checkpatch.pl`` does need
-``perl`` to be installed.
-
-``u_boot_pylib`` lives in ``patman/_vendor/``, inside the ``patman`` package,
-so that installing patman does not clash with U-Boot's own copy or with other
-packages which provide it. ``patman/__init__.py`` adds that directory to the
-start of the import path, so the code still imports it by its usual name.
+files live in ``scripts/`` and ``u_boot_pylib`` is installed from PyPI as
+``u-boot-pylib`` (https://github.com/nxtboot/u-boot-pylib), so no
+surrounding U-Boot source is needed. ``checkpatch.pl`` does need ``perl``
+to be installed.
 
 Building the documentation
 --------------------------
