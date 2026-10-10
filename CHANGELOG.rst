@@ -8,6 +8,12 @@ the project follows `Semantic Versioning <https://semver.org/>`_.
 Unreleased
 ----------
 
+Changed
+~~~~~~~
+- The U-Boot Python library is now a dependency, from the ``u-boot-pylib``
+  package, rather than a copy vendored into patman. The Debian package
+  depends on ``python3-u-boot-pylib``.
+
 0.3.1 - 2026-10-07
 ------------------
 

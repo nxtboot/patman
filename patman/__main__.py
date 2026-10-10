@@ -14,7 +14,7 @@ import sys
 our_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(our_path, '..'))
 
-# Our modules. Import patman first, since it sets up the vendored libraries
+# Our modules
 from patman import cmdline
 from patman import control
 from u_boot_pylib import test_util

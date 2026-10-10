@@ -20,6 +20,7 @@ Depends:
  python3-aiohttp,
  python3-patatt,
  python3-pygit2,
+ python3-u-boot-pylib (>= 0.1.0),
 Suggests:
  python3-googleapi,
  python3-google-auth-httplib2,
