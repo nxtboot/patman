@@ -1500,9 +1500,9 @@ class CseriesHelper:
             COVER object, or None if none or not read_cover_comments
             list of PATCH objects
         """
+        # Read the cover letter's comments, since its tags apply to every patch
         async with aiohttp.ClientSession() as client:
-            return await pwork.series_get_state(client, link, True,
-                                                show_cover_comments)
+            return await pwork.series_get_state(client, link, True, True)
 
     def _get_fetch_dict(self, sync_all_versions):
         """Get a dict of ser_vers to fetch, along with their patchwork links

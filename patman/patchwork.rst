@@ -85,7 +85,8 @@ To automatically pull these tags into a new branch, use the -d option:
 This will create a new 'mtrr4' branch which is the same as your current branch
 but has the new review tags in it. The tags are added in alphabetic order and
 are placed immediately after any existing ack/review/test/fixes tags, or at the
-end. The new branch does not track an upstream branch, so set one with
+end. A tag given in a reply to the cover letter, such as a Reviewed-by for the
+whole series, is added to every patch which does not already have it. The new branch does not track an upstream branch, so set one with
 ``git branch --set-upstream-to`` before sending from it.
 
 For a worked example using real series, see

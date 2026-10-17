@@ -2973,7 +2973,7 @@ Date:   .*
                 f"Updating series 'second' version 1 from link "
                 f"'{self.SERIES_ID_SECOND_V1}'",
                 lines[0])
-            self.assertEqual('3 patches updated (7 requests)', lines[1])
+            self.assertEqual('3 patches and cover letter updated (8 requests)', lines[1])
             self.assertEqual('Dry run completed', lines[2])
             self.assertEqual(3, len(lines))
 
@@ -3017,7 +3017,7 @@ Date:   .*
             self.assertRegex(
                 next(itr),
                 f'Updating branch second from {HASH_RE} to {HASH_RE}')
-            self.assertEqual('3 patches updated (7 requests)', next(itr))
+            self.assertEqual('3 patches and cover letter updated (8 requests)', next(itr))
             self.assertEqual('Dry run completed', next(itr))
             self.assert_finished(itr)
 

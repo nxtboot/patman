@@ -223,6 +223,32 @@ def check_patch_count(num_commits, num_patches):
                      f'series has {num_commits}')
 
 
+def add_cover_rtags(commits, cover, new_rtag_list):
+    """Add the review tags given on the cover letter to each patch
+
+    A tag in a reply to the cover letter, such as a Reviewed-by for the whole
+    series, applies to every patch, as with other tools such as b4
+
+    Args:
+        commits (list of Commit): Commits of the series
+        cover (COVER or None): Cover letter, with its comments
+        new_rtag_list (list of dict or None): New review tags for each commit,
+            each a dict mapping the tag to the set of people who gave it;
+            updated with the tags from the cover letter
+    """
+    if not cover or not cover.comments:
+        return
+    cover_rtags, _ = process_reviews('', cover.comments, {})
+    for i, cmt in enumerate(commits):
+        for tag, people in cover_rtags.items():
+            new = {who for who in people
+                   if who not in cmt.rtags.get(tag, set())}
+            if new:
+                if new_rtag_list[i] is None:
+                    new_rtag_list[i] = defaultdict(set)
+                new_rtag_list[i].setdefault(tag, set()).update(new)
+
+
 def do_show_status(series, cover, patches, show_comments, show_cover_comments,
                    col, warnings_on_stderr=True):
     """Check the status of a series on Patchwork
@@ -274,6 +300,7 @@ def do_show_status(series, cover, patches, show_comments, show_cover_comments,
                 new_rtag_list[i], review_list[i] = process_reviews(
                     patch_data['content'], comment_data,
                     series.commits[i].rtags)
+        add_cover_rtags(series.commits, cover, new_rtag_list)
         num_to_add = _do_show_status(
             series, cover, patch_for_commit, show_comments,
             show_cover_comments, new_rtag_list, review_list, col)
@@ -456,8 +483,9 @@ def check_and_show_status(series, link, branch, dest_branch, force,
         test_repo (pygit2.Repository): Repo to use (use None unless testing)
     """
     loop = asyncio.get_event_loop()
+    # Read the cover letter's comments, since its tags apply to every patch
     cover, patches = loop.run_until_complete(check_status(
-        link, pwork, True, show_cover_comments))
+        link, pwork, True, True))
 
     show_status(series, branch, dest_branch, force, cover, patches,
                 show_comments, show_cover_comments, test_repo=test_repo)

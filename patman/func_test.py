@@ -760,6 +760,32 @@ diff --git a/lib/efi_loader/efi_memory.c b/lib/efi_loader/efi_memory.c
         self.assertTrue(pstat.call_args.kwargs['single_thread'])
         self.assertTrue(pstat.call_args.kwargs['show_cover_comments'])
 
+    def test_status_cover_rtags(self):
+        """Test that tags given on the cover letter apply to each patch"""
+        commit1 = Commit('abcd')
+        commit1.rtags = {'Reviewed-by': {self.joe}}
+        commit2 = Commit('ef12')
+        comment = {'content': f'For the series:\n\nReviewed-by: {self.joe}\n'
+                              f'Tested-by: {self.mary}\n',
+                   'submitter': {'name': 'Joe', 'email': 'joe@x.org'}}
+        cover = patchwork.COVER(9, 1, 'The series', [comment])
+
+        # The first commit has Joe's review already, so gets just Mary's tag
+        new_rtags = [{'Acked-by': {self.leb}}, None]
+        status.add_cover_rtags([commit1, commit2], cover, new_rtags)
+        self.assertEqual([{'Acked-by': {self.leb}, 'Tested-by': {self.mary}},
+                          {'Reviewed-by': {self.joe},
+                           'Tested-by': {self.mary}}],
+                         [dict(tags) if tags else tags for tags in new_rtags])
+
+        # Nothing changes with no cover letter, or no comments on it
+        new_rtags = [None, None]
+        status.add_cover_rtags([commit1, commit2], None, new_rtags)
+        status.add_cover_rtags([commit1, commit2],
+                               patchwork.COVER(9, 0, 'The series', []),
+                               new_rtags)
+        self.assertEqual([None, None], new_rtags)
+
     def test_status_read_patch(self):
         """Test handling a single patch in Patchwork"""
         pwork = patchwork.Patchwork.for_testing(self._fake_patchwork)

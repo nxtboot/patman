@@ -10,6 +10,9 @@ Unreleased
 
 Added
 ~~~~~
+- ``patman status`` and ``patman series gather`` add a review tag given in
+  a reply to the cover letter, e.g. a Reviewed-by for the whole series, to
+  every patch which does not already have it.
 - Revising, redrafting or sending reviews on the ``patman serve`` page keeps
   the page where it is, showing the job on each review it acts on, then the
   new text, with the text from before available.
