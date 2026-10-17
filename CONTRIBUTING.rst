@@ -53,6 +53,10 @@ describes the database schema; update it along with any schema migration.
 ``patman serve``; update it along with any change to the API.
 ``doc/review-internals.rst`` describes how the review works.
 
+``doc/demo/record.sh`` records the short video of patman in a terminal which
+is shown at https://deinde.dev/patman/. Run it again after a change to the
+output which the video shows.
+
 Building the package
 --------------------
 

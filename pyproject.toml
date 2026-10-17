@@ -49,7 +49,7 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/deinde-dev/patman"
+Homepage = "https://deinde.dev/patman/"
 Documentation = "https://patman.readthedocs.io/"
 Repository = "https://github.com/deinde-dev/patman"
 "Bug Tracker" = "https://github.com/deinde-dev/patman/issues"
