@@ -1872,6 +1872,13 @@ VERDICT: skip"""
                          commits({'pw-155-review'}))
         self.assertEqual(([], None), commits(set()))
 
+    def test_review_prompt_quoting(self):
+        """Every prompt which writes review text has the same quoting rules"""
+        for prompt in (review.prompts.REFINE_REVIEWS_PROMPT,
+                       review.prompts.REPLY_PROMPT):
+            self.assertIn(review.prompts.QUOTING_RULES, prompt)
+            self.assertNotIn('do not quote them', prompt)
+
     def test_review_comments_file(self):
         """Test writing the existing patchwork comments for the agent"""
         class FakePatchwork:

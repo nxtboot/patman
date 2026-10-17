@@ -78,6 +78,10 @@ Added
 
 Changed
 ~~~~~~~
+- The agents which refine reviews and suggest responses to replies follow
+  the same rules for quoting as the review agents: single quotes for
+  identifiers and other quoted text, and the author's text left as it is
+  in quoted lines. They used to be told not to quote identifiers.
 - The ``patman serve`` API gives status 400 for a request which is not
   valid, e.g. with a bad value or a missing field, rather than 404.
 - Patchwork requests are retried when the connection fails, is reset or

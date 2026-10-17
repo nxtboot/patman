@@ -464,10 +464,7 @@ RULES:
   others. Also remove any comment that restates, rephrases, or
   elaborates on a point already made by another reviewer — the author
   has already been told.
-- NEVER use backticks — this is plain-text email, not markdown.
-  For functions, always use parentheses with no quotes: malloc() not
-  'malloc()' or `malloc`. For other identifiers do not quote them
-  unless they are common English words that might confuse the reader.
+''' + QUOTING_RULES + '''
 - Use {spelling} spelling.
 - Do not change the technical substance of any comment.
 - Do not add new review comments or suggestions.
@@ -611,10 +608,7 @@ Your response.
 VERDICT: changes_needed
 
 Rules:
-- NEVER use backticks — this is plain-text email, not markdown.
-  For functions, always use parentheses with no quotes: malloc() not
-  'malloc()' or `malloc`. For other identifiers do not quote them
-  unless they are common English words that might confuse the reader
+''' + QUOTING_RULES + '''
 - Use {spelling} spelling
 - Be brief and direct
 - If the author is right, concede gracefully
