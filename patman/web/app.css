@@ -236,3 +236,14 @@ input[type=password] {
   margin: 8px 0;
 }
 .extlink { font-size: 13px; }
+/* A job acting on a review, shown on its card */
+.jobstrip:empty { display: none; }
+.jobstrip { margin: 8px 0 4px; padding: 6px 10px; border-radius: 6px;
+            font-size: 14px; border: 1px solid var(--border);
+            background: var(--code-bg); }
+.jobstrip.busy { border-color: var(--st-review); }
+.jobstrip.done { border-color: var(--st-accepted); }
+.jobstrip.failed { border-color: var(--st-rejected); color: var(--st-rejected); }
+.jobstrip .notes { margin-top: 6px; }
+button.link { background: none; border: 0; padding: 0; color: var(--link);
+              font: inherit; cursor: pointer; }

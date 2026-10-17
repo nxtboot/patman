@@ -10,6 +10,9 @@ Unreleased
 
 Added
 ~~~~~
+- Revising, redrafting or sending reviews on the ``patman serve`` page keeps
+  the page where it is, showing the job on each review it acts on, then the
+  new text, with the text from before available.
 - ``patman review --revise``, and revising on the ``patman serve`` page,
   give the agent the cover letter, the other reviews of the series, the
   comments from patchwork and the reviewer's writing voice, so that the
