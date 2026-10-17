@@ -44,6 +44,11 @@ from patman.review import stored
 from patman.review import voice
 
 
+# Reported when the Claude Agent SDK, which runs the agents, is not installed
+AGENT_MISSING = ("The review agent is not available; install the 'review' "
+                 'extra (pip install patch-manager[review])')
+
+
 def _read_context(spec):
     """Resolve a --context argument value to literal text
 
@@ -314,9 +319,7 @@ def review_series(cser, series_id, svid, version, branch, series,
         context (str or None): Extra context for the review agent
     """
     if not claude_mod.check_available():
-        raise ValueError(
-            "The review agent is not available; install the 'review' extra "
-            '(pip install patch-manager[review])')
+        raise ValueError(AGENT_MISSING)
 
     commits = series.commits
     if not commits:
@@ -741,6 +744,13 @@ def _review_link(args, pwork, cser, link):
         if result is None:
             return 0
         ctx.series_id, ctx.svid = result
+
+        # The agent applies and reviews the patches, so check for it before
+        # making the worktree, leaving no record of a review not done
+        if not claude_mod.check_available():
+            cser.db.ser_ver_remove(ctx.series_id, ctx.version)
+            cser.commit()
+            raise ValueError(AGENT_MISSING)
 
         ctx.upstream_branch = apply.get_upstream_branch(args, cser)
         ctx.main_repo = main_repo

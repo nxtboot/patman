@@ -126,10 +126,10 @@ The review agent is not available
 ::
 
     $ patman review -s 155 -U ci
-    ...
     Claude Agent SDK not available
     Install with: pip install claude-agent-sdk
-    Failed to apply patches to branch
+    ...
+    patman: ValueError: The review agent is not available; install the 'review' extra (pip install patch-manager[review])
 
 ``patman review`` needs the Claude Agent SDK, which comes with the review
 extra: ``pip install patch-manager[review]``. The agent also needs Claude Code

@@ -102,6 +102,9 @@ Changed
 
 Fixed
 ~~~~~
+- ``patman review`` says that the review agent is not installed, and how to
+  install it, before making a worktree, rather than failing to apply the
+  patches.
 - ``patman review`` records the upstream of each series it reviews, and
   names its branch after it, e.g. ``us-498633-review``. It did not, so the
   ``patman serve`` page read the series from the default upstream's
