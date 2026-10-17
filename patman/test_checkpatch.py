@@ -15,6 +15,7 @@ from patman import patchstream
 from patman import series
 from patman import commit
 from u_boot_pylib import gitutil
+from patman.test_common import find_source_dir
 
 
 class Line:
@@ -140,6 +141,16 @@ This is a test commit.
 
 class TestPatch(unittest.TestCase):
     """Test the u_boot_line() function in checkpatch.pl"""
+
+    def setUp(self):
+        # Use the checkpatch.pl and .checkpatch.conf kept with the sources
+        self._old_cwd = os.getcwd()
+        source = find_source_dir()
+        if source:
+            os.chdir(source)
+
+    def tearDown(self):
+        os.chdir(self._old_cwd)
 
     def test_filter(self):
         """Test basic filter operation"""

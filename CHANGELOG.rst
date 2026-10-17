@@ -90,6 +90,10 @@ Changed
 
 Fixed
 ~~~~~
+- The tests no longer need /usr/bin/env, and give the same results
+  whichever directory they are run from, which helps when packaging
+  patman, e.g. for Guix. A command which fails in a test now shows its
+  output.
 - The columns of ``patman series summary`` line up with its header.
 - ``patman status`` finds the patchwork link on a branch whose name has no
   version number, using the series' own version (from ``Series-version``,

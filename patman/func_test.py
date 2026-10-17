@@ -485,10 +485,12 @@ Changes in v2:
                              'get_maintainer_script: dummy-script.sh\n'
                              'check_patch: False\n'
                              'add_maintainers: True\n', binary=False)
+            # Use this Python, since a build container may have no
+            # /usr/bin/env to find one
             tools.write_file('dummy-script.sh',
-                             '#!/usr/bin/env python3\n'
+                             f'#!{sys.executable}\n'
                              'print("hello@there.com")\n', binary=False)
-            os.chmod('dummy-script.sh', 0x555)
+            os.chmod('dummy-script.sh', 0o755)
             tools.run('git', 'add', '.')
             tools.run('git', 'commit', '-m', 'new commit')
 

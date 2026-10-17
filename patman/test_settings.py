@@ -17,10 +17,14 @@ from u_boot_pylib import tools
 
 @contextlib.contextmanager
 def empty_git_repository():
+    orig = os.getcwd()
     with tempfile.TemporaryDirectory() as tmpdir:
         os.chdir(tmpdir)
-        tools.run('git', 'init', raise_on_error=True)
-        yield tmpdir
+        try:
+            tools.run('git', 'init', raise_on_error=True)
+            yield tmpdir
+        finally:
+            os.chdir(orig)
 
 
 @contextlib.contextmanager
