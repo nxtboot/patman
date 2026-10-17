@@ -299,7 +299,9 @@ Revising reviews
 
 To have the agent change reviews which have not been sent yet, say what you
 want in a note with ``--revise``. It changes only what the note asks for,
-and can check the code using the review branch. Use ``-i`` to pick which
+and can check the code using the review branch. It also sees the cover
+letter, the other reviews of the series, the comments from patchwork and
+your writing voice, so that the new text fits with the rest. Use ``-i`` to pick which
 patches' reviews it looks at (0 is the cover letter), and ``-d`` to update
 the Gmail drafts of the reviews which change::
 

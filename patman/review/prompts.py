@@ -107,7 +107,7 @@ QUOTING_RULES = """\
   omit the period, or use an em dash to start the next clause"""
 
 
-def _voice_section():
+def voice_section():
     """Get the prompt section asking the agent to write in the user's voice
 
     Returns:
@@ -186,7 +186,7 @@ time round. Apply that convention here:
   approve. Prefer 'approved' over fishing for something to say.
 '''
 
-    voice_section = _voice_section()
+    style = voice_section()
 
     # Build the series overview
     series_lines = []
@@ -225,7 +225,7 @@ in your review. Ignore defects unrelated to this patch.
     return f'''You are an experienced U-Boot developer reviewing \
 a patch submitted to
 the U-Boot mailing list. This is patch {seq}/{len(all_commits)} in the series.
-{voice_section}
+{style}
 SERIES OVERVIEW (all patches, >>> marks the one you are reviewing):
 {series_overview}
 
@@ -350,7 +350,7 @@ def build_cover_review_prompt(ctx, all_commits, previous_review=None):
     Returns:
         str: The prompt text
     """
-    voice_section = _voice_section()
+    style = voice_section()
     series_lines = []
     for s, h, subj in all_commits:
         series_lines.append(f"  {s}. {h[:12]} {subj}")
@@ -390,7 +390,7 @@ add at the series level.
     return f'''You are an experienced U-Boot developer reviewing a patch series
 submitted to the U-Boot mailing list. Review the series as a whole,
 replying to the cover letter.
-{voice_section}
+{style}
 SERIES ({len(all_commits)} patches):
 {series_overview}
 
@@ -497,6 +497,42 @@ Regards, Simon
 '''
 
 
+def revise_context(cover, others, comments_path):
+    """Get the prompt section with the rest of the series, for a revision
+
+    Args:
+        cover (str or None): Text of the cover letter, if any
+        others (dict): Map of seq to the body of each review which is not
+            being revised
+        comments_path (str or None): File holding the comments which the
+            series has received on patchwork, if any
+
+    Returns:
+        str: Section text, or '' if there is nothing to add
+    """
+    parts = []
+    if cover:
+        parts.append(f'''
+COVER LETTER:
+{cover}
+''')
+    if others:
+        reviews = '\n'.join(f'---SEQ {seq}---\n{body}'
+                            for seq, body in sorted(others.items()))
+        parts.append(f'''
+OTHER REVIEWS OF THE SERIES (for context only; do NOT change or output these):
+{reviews}
+''')
+    if comments_path:
+        parts.append(f'''
+EXISTING COMMENTS:
+Other people may have commented on this series. Read the file below for
+context, and do not add points which they have already made.
+(see file: {comments_path})
+''')
+    return ''.join(parts)
+
+
 REVISE_PROMPT = '''You are a U-Boot maintainer. You drafted the code
 reviews in the file below, but they have not been sent yet. The reviewer has
 read them and wants them changed, as described in their note.
@@ -511,7 +547,7 @@ Each review in the file starts with a line '---SEQ N---', where N is the
 patch number (0 is the cover letter).
 
 {patches}
-
+{context}
 TASK:
 - Change the reviews as the note asks. If the note quotes part of a review,
   it is about that part.
@@ -529,7 +565,7 @@ TASK:
 - If the note asks for a change to a patch which its review approves, remove
   the Reviewed-by line
 - Use {spelling} spelling
-
+{voice}
 OUTPUT:
 Output ONLY the reviews you changed, each as the line '---SEQ N---' followed
 by the complete new text of that review. Leave out reviews which need no

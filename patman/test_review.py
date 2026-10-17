@@ -1035,6 +1035,10 @@ class TestReview(CseriesTester):
                       seen['prompt'])
         self.assertIn('---SEQ 1---', seen['reviews'])
         self.assertNotIn('Sent already', seen['reviews'])
+
+        # The review which was sent is given as context, not to be changed
+        self.assertIn('OTHER REVIEWS OF THE SERIES', seen['prompt'])
+        self.assertIn('---SEQ 2---\nSent already', seen['prompt'])
         self.assertIn('Revised the review of patch 1', out.getvalue())
         self.assertNotIn('cover letter', out.getvalue())
 
@@ -1052,6 +1056,44 @@ class TestReview(CseriesTester):
         with self.assertRaises(ValueError) as exc:
             review.stored._do_revise(args, None, cser, '123')
         self.assertIn('No unsent reviews', str(exc.exception))
+
+    def test_review_revise_context(self):
+        """A revision is given the rest of the series as context"""
+        self.assertEqual('', review.prompts.revise_context(None, {}, None))
+        text = review.prompts.revise_context(
+            'Cover text', {2: 'Second review'}, '/tmp/comments.txt')
+        self.assertIn('COVER LETTER:\nCover text', text)
+        self.assertIn('---SEQ 2---\nSecond review', text)
+        self.assertIn('(see file: /tmp/comments.txt)', text)
+
+        # The cover letter and comments come from patchwork
+        ctx = review.common.ReviewContext(None, None, {})
+        series = {'id': 123, 'cover_letter': {'id': 9}}
+        with mock.patch.object(review.lookup, 'fetch_series',
+                               return_value=(series, 'x', 1, 2)), \
+                mock.patch.object(review.lookup, 'fetch_cover_content',
+                                  return_value='Cover text'), \
+                mock.patch.object(review.lookup, 'write_comments_file',
+                                  return_value='/tmp/c.txt'):
+            review.stored._read_series_context(ctx, mock.Mock(), '123')
+        self.assertEqual((series, 'Cover text', '/tmp/c.txt'),
+                         (ctx.series_data, ctx.cover_content,
+                          ctx.comments_path))
+
+        # A problem reading patchwork does not stop the revision
+        ctx = review.common.ReviewContext(None, None, {})
+        with mock.patch.object(review.lookup, 'fetch_series',
+                               side_effect=ValueError('no server')), \
+                terminal.capture() as (_, err):
+            review.stored._read_series_context(ctx, mock.Mock(), '123')
+        self.assertIsNone(ctx.cover_content)
+        self.assertIn('Could not read the series from patchwork: no server',
+                      err.getvalue())
+
+        # The writing voice is used too
+        with mock.patch.object(review.voice, 'get_voice',
+                               return_value='Be terse'):
+            self.assertIn('Be terse', review.prompts.voice_section())
 
     def test_review_send(self):
         """The Gmail drafts of a series' reviews can be sent"""

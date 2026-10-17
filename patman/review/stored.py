@@ -157,15 +157,21 @@ def _review_commits(args, cser, link, ups):
     return out.splitlines()
 
 
-async def revise_reviews(ctx, reviews, note, commits):
+async def revise_reviews(ctx, reviews, note, commits, others=None):
     """Ask the agent to change some reviews, following a note from the reviewer
 
+    The agent is also given the cover letter, the other reviews of the series,
+    the comments it has received and the reviewer's writing voice, if known,
+    so that it writes as the original review did.
+
     Args:
-        ctx (ReviewContext): Review context (uses repo_path, reviewer_tag
-            and spelling)
+        ctx (ReviewContext): Review context (uses repo_path, reviewer_tag,
+            spelling, cover_content and comments_path)
         reviews (dict): Map of seq to review body text
         note (str): What the reviewer wants changed
         commits (list of str): 'hash subject' for each patch, in order
+        others (dict or None): Map of seq to the body of each other review of
+            the series, which the agent sees but does not change
 
     Returns:
         dict or None: Map of seq to new review body text, for each review
@@ -187,9 +193,12 @@ async def revise_reviews(ctx, reviews, note, commits):
         outf.write('\n'.join(parts))
         reviews_path = outf.name
     try:
+        context = prompts.revise_context(ctx.cover_content, others,
+                                         ctx.comments_path)
         prompt = prompts.REVISE_PROMPT.format(
             note=note, reviews_path=reviews_path, patches=patches,
-            tag=ctx.reviewer_tag, spelling=ctx.spelling)
+            context=context, tag=ctx.reviewer_tag, spelling=ctx.spelling,
+            voice=prompts.voice_section())
         options = common.agent_options(
             allowed_tools=['Bash', 'Read', 'Grep'], cwd=ctx.repo_path,
             max_buffer_size=claude_mod.MAX_BUFFER_SIZE)
@@ -203,9 +212,29 @@ async def revise_reviews(ctx, reviews, note, commits):
             if seq in reviews and body and body != reviews[seq].strip()}
 
 
-def revise_reviews_sync(ctx, reviews, note, commits):
+def revise_reviews_sync(ctx, reviews, note, commits, others=None):
     """Synchronous wrapper for revise_reviews()"""
-    return common.run(revise_reviews(ctx, reviews, note, commits))
+    return common.run(revise_reviews(ctx, reviews, note, commits, others))
+
+
+def _read_series_context(ctx, pwork, link):
+    """Read the cover letter and comments of a series, for a revision
+
+    Problems reading patchwork are reported but do not stop the revision,
+    which can go ahead without this context.
+
+    Args:
+        ctx (ReviewContext): Review context, whose series_data,
+            cover_content and comments_path are set
+        pwork (Patchwork): Configured patchwork instance
+        link (str): Patchwork series link/ID
+    """
+    try:
+        ctx.series_data = lookup.fetch_series(pwork, link)[0]
+        ctx.cover_content = lookup.fetch_cover_content(pwork, ctx.series_data)
+        ctx.comments_path = lookup.write_comments_file(ctx.series_data, pwork)
+    except (ValueError, OSError) as exc:
+        tout.warning(f'Could not read the series from patchwork: {exc}')
 
 
 def _do_revise(args, pwork, cser, link):
@@ -229,7 +258,8 @@ def _do_revise(args, pwork, cser, link):
         raise ValueError(f'Series {link} has not been reviewed')
     _, name, version, svid = existing
     sel = common.parse_patch_selection(args.patches)
-    reviews = [rev for rev in cser.db.review_get_for_version(svid)
+    all_reviews = cser.db.review_get_for_version(svid)
+    reviews = [rev for rev in all_reviews
                if rev.status not in (database.REVIEW_SENT,
                                      database.REVIEW_REPLIED) and
                (not sel or rev.seq in sel)]
@@ -243,8 +273,18 @@ def _do_revise(args, pwork, cser, link):
     ctx.spelling = args.spelling
     ups = pwork.upstream if pwork else None
     commits = _review_commits(args, cser, link, ups)
-    changed = revise_reviews_sync(
-        ctx, {rev.seq: rev.body for rev in reviews}, args.revise, commits)
+    if pwork:
+        _read_series_context(ctx, pwork, link)
+    chosen = {rev.seq for rev in reviews}
+    others = {rev.seq: rev.body for rev in all_reviews
+              if rev.seq not in chosen}
+    try:
+        changed = revise_reviews_sync(
+            ctx, {rev.seq: rev.body for rev in reviews}, args.revise, commits,
+            others)
+    finally:
+        if ctx.comments_path and os.path.exists(ctx.comments_path):
+            os.unlink(ctx.comments_path)
     if changed is None:
         tout.error('Could not revise the reviews')
         return 1
@@ -266,7 +306,8 @@ def _do_revise(args, pwork, cser, link):
         redo = [cser.db.review_get(rev.idnum) for rev in reviews
                 if rev.seq in changed]
         drafts.delete_gmail_drafts(args, redo)
-        ctx.series_data = lookup.fetch_series(pwork, link)[0]
+        if not ctx.series_data:
+            ctx.series_data = lookup.fetch_series(pwork, link)[0]
         drafts.create_drafts(ctx, args, {rev.seq: rev.body for rev in redo},
                              {rev.seq: rev.idnum for rev in redo})
     return 0
