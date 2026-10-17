@@ -178,7 +178,7 @@ class PatchStream:
             ValueError: Warning is generated with no commit associated
         """
         if not self.commit:
-            print('Warning outside commit: %s' % warn)
+            print(f'Warning outside commit: {warn}')
         elif warn not in self.commit.warn:
             self.commit.warn.append(warn)
 
@@ -269,8 +269,8 @@ class PatchStream:
         try:
             return int(value)
         except ValueError:
-            raise ValueError("%s: Cannot decode version info '%s'" %
-                             (self.commit.hash, line))
+            raise ValueError(f"{self.commit.hash}: Cannot decode version info "
+                             f"'{line}'")
 
     def _finalise_change(self):
         """_finalise a (multi-line) change and add it to the series or commit"""
@@ -338,11 +338,11 @@ class PatchStream:
         if valid:
             lines = []
             if self.recent_diff:
-                lines.append('> File: %s' % self.recent_diff)
+                lines.append(f'> File: {self.recent_diff}')
             if self.recent_line:
                 out = '> Line: %s / %s' % self.recent_line[:2]
                 if self.recent_line[2]:
-                    out += ': %s' % self.recent_line[2]
+                    out += f': {self.recent_line[2]}'
                 lines.append(out)
             lines += quoted_lines + unquoted_lines
             if lines:
@@ -356,12 +356,12 @@ class PatchStream:
         """
         # A section without an 'END'
         if self.in_section:
-            self._add_warn("Missing 'END' in section '%s'" % self.in_section)
+            self._add_warn(f"Missing 'END' in section '{self.in_section}'")
             self._finalise_section()
         # A change list without a blank line after it
         if self.in_change:
-            self._add_warn("Missing 'blank line' in section '%s-changes'" %
-                           self.in_change)
+            self._add_warn("Missing 'blank line' in section "
+                           f"'{self.in_change}-changes'")
             self._finalise_change()
             self.in_change = None
             self.change_version = 0
@@ -451,8 +451,8 @@ class PatchStream:
         if self.is_log:
             if self.commit.change_id:
                 raise ValueError(
-                    "%s: Two Change-Ids: '%s' vs. '%s'" %
-                    (self.commit.hash, self.commit.change_id, value))
+                    f"{self.commit.hash}: Two Change-Ids: "
+                    f"'{self.commit.change_id}' vs. '{value}'")
             self.commit.change_id = value
         self.skip_blank = True
         return out
@@ -477,11 +477,9 @@ class PatchStream:
         elif name == 'added-in':
             version = self._parse_version(value, line)
             self.commit.add_change(version, '- New')
-            self.series.AddChange(version, None, '- %s' %
-                                  self.commit.subject)
+            self.series.AddChange(version, None, f'- {self.commit.subject}')
         else:
-            self._add_warn('Line %d: Ignoring Commit-%s' %
-                           (self.linenum, name))
+            self._add_warn(f'Line {self.linenum}: Ignoring Commit-{name}')
 
     def _process_rtag(self, tag_match, line):
         """Handle a tag such as Reviewed-by in the commit message
@@ -499,7 +497,7 @@ class PatchStream:
         # Remove Tested-by self, since few will take much notice
         if (rtag_type == 'Tested-by' and
                 who.find(os.getenv('USER') + '@') != -1):
-            self._add_warn("Ignoring '%s'" % line)
+            self._add_warn(f"Ignoring '{line}'")
         elif rtag_type == 'Patch-cc':
             self.commit.add_cc(who.split(','))
         else:
@@ -538,8 +536,8 @@ class PatchStream:
         # Look for space before tab
         mat = RE_SPACE_BEFORE_TAB.match(line)
         if mat:
-            self._add_warn('Line %d/%d has space before tab' %
-                           (self.linenum, mat.start()))
+            self._add_warn(f'Line {self.linenum}/{mat.start()} has space '
+                           'before tab')
 
         # OK, we have a valid non-blank line
         out = [line]
@@ -703,8 +701,7 @@ class PatchStream:
 
         # Detect invalid tags
         elif invalid_match:
-            raise ValueError("Line %d: Invalid tag = '%s'" %
-                (self.linenum, line))
+            raise ValueError(f"Line {self.linenum}: Invalid tag = '{line}'")
 
         # Detect the start of a new commit
         elif commit_match:
@@ -730,7 +727,7 @@ class PatchStream:
         self._finalise_change()
         self._close_commit(False)
         if self.lines_after_test:
-            self._add_warn('Found %d lines after TEST=' % self.lines_after_test)
+            self._add_warn(f'Found {self.lines_after_test} lines after TEST=')
 
     def _write_message_id(self, outfd):
         """Write the Message-Id into the output.
@@ -822,8 +819,8 @@ class PatchStream:
                     self.blank_count += 1
                 else:
                     if self.blank_count and (line == '-- ' or match):
-                        self._add_warn("Found possible blank line(s) at end of file '%s'" %
-                                       last_fname)
+                        self._add_warn('Found possible blank line(s) at end '
+                                       f"of file '{last_fname}'")
                     # Write base-commit/branch before git's '-- ' signature
                     # so patchwork parses them as the series base.
                     if (self.insert_base_commit and not inserted_base
@@ -1023,7 +1020,7 @@ def fix_patches(series, fnames, keep_change_id=False, insert_base_commit=False,
             print('%d warning%s for %s:' %
                   (len(result), 's' if len(result) > 1 else '', fname))
             for warn in result:
-                print('\t%s' % warn)
+                print(f'\t{warn}')
             print()
         count += 1
     print('Cleaned %d patch%s' % (count, 'es' if count > 1 else ''))
@@ -1041,11 +1038,11 @@ def insert_cover_letter(fname, series, count, cwd=None,
             trailers before the signature
     """
     fname = os.path.join(cwd or '', fname)
-    fil = open(fname, 'r')
+    fil = open(fname, 'r', encoding='utf-8')
     lines = fil.readlines()
     fil.close()
 
-    fil = open(fname, 'w')
+    fil = open(fname, 'w', encoding='utf-8')
     text = series.cover
     prefix = series.GetPatchPrefix()
     inserted_base = False
@@ -1070,7 +1067,7 @@ def insert_cover_letter(fname, series, count, cwd=None,
             # if more than 10 or 100 patches, it should say 00/xx, 000/xxx, etc
             zero_repeat = int(math.log10(count)) + 1
             zero = '0' * zero_repeat
-            line = 'Subject: [%s %s/%d] %s\n' % (prefix, zero, count, text[0])
+            line = f'Subject: [{prefix} {zero}/{count}] {text[0]}\n'
 
         # Insert our cover letter
         elif line.startswith('*** BLURB HERE ***'):

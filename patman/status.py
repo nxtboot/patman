@@ -97,8 +97,8 @@ def compare_with_series(series, patches):
                             (seq + 1, cmt.subject,
                              '\n   '.join([p.subject for p in pmatch])))
         else:
-            warnings.append("Cannot find patch for commit %d ('%s')" %
-                            (seq + 1, cmt.subject))
+            warnings.append(f'Cannot find patch for commit {seq + 1} '
+                            f"('{cmt.subject}')")
 
     # Check the names match
     commit_for_patch = {}
@@ -113,8 +113,8 @@ def compare_with_series(series, patches):
                             (seq + 1, patch.subject,
                              '\n   '.join([c.subject for c in cmatch])))
         else:
-            warnings.append("Cannot find commit for patch %d ('%s')" %
-                            (seq + 1, patch.subject))
+            warnings.append(f'Cannot find commit for patch {seq + 1} '
+                            f"('{patch.subject}')")
 
     return patch_for_commit, commit_for_patch, warnings
 
@@ -176,18 +176,18 @@ def create_branch(series, new_rtag_list, branch, dest_branch, overwrite,
     new_br = repo.branches.get(dest_branch)
     if new_br:
         if not overwrite:
-            raise ValueError("Branch '%s' already exists (-f to overwrite)" %
-                             dest_branch)
+            raise ValueError(f"Branch '{dest_branch}' already exists "
+                             '(-f to overwrite)')
         new_br.delete()
     if not branch:
         branch = 'HEAD'
-    target = repo.revparse_single('%s~%d' % (branch, count))
+    target = repo.revparse_single(f'{branch}~{count}')
     repo.branches.local.create(dest_branch, target)
 
     num_added = 0
     for seq in range(count):
         parent = repo.branches.get(dest_branch)
-        cherry = repo.revparse_single('%s~%d' % (branch, count - seq - 1))
+        cherry = repo.revparse_single(f'{branch}~{count - seq - 1}')
 
         repo.merge_base(cherry.id, parent.target)
         base_tree = cherry.parents[0].tree
@@ -200,7 +200,7 @@ def create_branch(series, new_rtag_list, branch, dest_branch, overwrite,
         if new_rtag_list[seq]:
             for tag, people in new_rtag_list[seq].items():
                 for who in people:
-                    lines.append('%s: %s' % (tag, who))
+                    lines.append(f'{tag}: {who}')
                     num_added += 1
         message = patchstream.insert_tags(cherry.message.rstrip(),
                                           sorted(lines))
@@ -299,7 +299,7 @@ def _do_show_status(series, cover, patch_for_commit, show_comments,
         patch = patch_for_commit.get(seq)
         if not patch:
             continue
-        terminal.tprint('%3d %s' % (patch.seq, patch.subject[:50]),
+        terminal.tprint(f'{patch.seq:3d} {patch.subject[:50]}',
                        colour=col.YELLOW, col=col)
         cmt = series.commits[seq]
         base_rtags = cmt.rtags
@@ -310,7 +310,7 @@ def _do_show_status(series, cover, patch_for_commit, show_comments,
         num_to_add += show_responses(col, new_rtags, indent, True)
         if show_comments:
             for review in review_list[seq]:
-                terminal.tprint('Review: %s' % review.meta, colour=col.RED,
+                terminal.tprint(f'Review: {review.meta}', colour=col.RED,
                                 col=col)
                 for snippet in review.snippets:
                     for line in snippet:

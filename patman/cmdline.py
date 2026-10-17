@@ -45,6 +45,11 @@ ALIASES = {
 
 
 class ErrorCatchingArgumentParser(argparse.ArgumentParser):
+    """An argument parser which can record errors rather than exiting
+
+    With catch_error set, an error is stored in 'message' and an exit sets
+    'exit_state', so that the tests can check them.
+    """
     def __init__(self, **kwargs):
         self.exit_state = None
         self.catch_error = False

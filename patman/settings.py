@@ -2,6 +2,8 @@
 # Copyright (c) 2011 The Chromium OS Authors.
 # Copyright (c) 2022 Maxim Cournoyer <maxim.cournoyer@savoirfairelinux.com>
 #
+"""Read patman's settings and email aliases from its config files"""
+
 
 try:
     import configparser as ConfigParser
@@ -96,7 +98,7 @@ class _ProjectConfigParser(ConfigParser.ConfigParser):
 
         # Update the project settings in the config based on
         # the _default_settings global.
-        project_settings = "%s_settings" % project_name
+        project_settings = f"{project_name}_settings"
         if not self.has_section(project_settings):
             self.add_section(project_settings)
         project_defaults = _default_settings.get(project_name, {})
@@ -113,7 +115,7 @@ class _ProjectConfigParser(ConfigParser.ConfigParser):
         """
         try:
             val = ConfigParser.ConfigParser.get(
-                self, "%s_%s" % (self._project_name, section), option,
+                self, f"{self._project_name}_{section}", option,
                 *args, **kwargs
             )
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
@@ -137,7 +139,7 @@ class _ProjectConfigParser(ConfigParser.ConfigParser):
         # Get items from the project section
         try:
             project_items = ConfigParser.ConfigParser.items(
-                self, "%s_%s" % (self._project_name, section), *args, **kwargs
+                self, f"{self._project_name}_{section}", *args, **kwargs
             )
             has_project_section = True
         except ConfigParser.NoSectionError:
@@ -170,7 +172,7 @@ def ReadGitAliases(fname):
     try:
         fd = open(fname, 'r', encoding='utf-8')
     except IOError:
-        print("Warning: Cannot find alias file '%s'" % fname)
+        print(f"Warning: Cannot find alias file '{fname}'")
         return
 
     re_line = re.compile(r'alias\s+(\S+)\s+(.*)')
@@ -181,7 +183,7 @@ def ReadGitAliases(fname):
 
         m = re_line.match(line)
         if not m:
-            print("Warning: Alias file line '%s' not understood" % line)
+            print(f"Warning: Alias file line '{line}' not understood")
             continue
 
         list = alias.get(m.group(1), [])
@@ -213,7 +215,7 @@ def CreatePatmanConfigFile(config_fname):
         email = input("Enter email: ")
 
     try:
-        f = open(config_fname, 'w')
+        f = open(config_fname, 'w', encoding='utf-8')
     except IOError:
         print("Couldn't create patman config file\n")
         raise
@@ -306,7 +308,7 @@ def _UpdateDefaults(main_parser, config, argv):
                 val = config.get('settings', name)
             defaults[name] = val
         else:
-            print("WARNING: Unknown setting %s" % name, file=sys.stderr)
+            print(f"WARNING: Unknown setting {name}", file=sys.stderr)
     if 'cmd' in defaults:
         del defaults['cmd']
     if 'subcmd' in defaults:
@@ -339,8 +341,7 @@ def _ReadAliasFile(fname):
                 words = line.split(None, 2)
                 if len(words) < 3 or words[0] != 'alias':
                     if not bad_line:
-                        bad_line = "%s:%d:Invalid line '%s'" % (fname, linenum,
-                                                                line)
+                        bad_line = f"{fname}:{linenum}:Invalid line '{line}'"
                     continue
                 alias[words[1]] = [s.strip() for s in words[2].split(',')]
         if bad_line:
@@ -354,7 +355,7 @@ def _ReadBouncesFile(fname):
         fname: Filename to read.
     """
     if os.path.exists(fname):
-        with open(fname) as fd:
+        with open(fname, encoding='utf-8') as fd:
             for line in fd:
                 if line.startswith('#'):
                     continue

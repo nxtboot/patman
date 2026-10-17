@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0+
 # Copyright (c) 2011 The Chromium OS Authors.
 #
+"""Hold a patch series: its commits, tags, recipients and change logs"""
+
 
 from __future__ import print_function
 
@@ -148,7 +150,7 @@ class Series(dict):
         # TODO: Colour the patches according to whether they passed checks
         for upto in range(len(args)):
             commit = self.commits[upto]
-            print(col.build(col.GREEN, '   %s' % args[upto]))
+            print(col.build(col.GREEN, f'   {args[upto]}'))
             cc_list = list(self._generated_cc[commit.patch])
             for email in sorted(set(cc_list) - to_set - cc_set):
                 if email == None:
@@ -164,14 +166,14 @@ class Series(dict):
         print('Prefix:\t ', self.get('prefix'))
         print('Postfix:\t ', self.get('postfix'))
         if self.cover:
-            print('Cover: %d lines' % len(self.cover))
+            print(f'Cover: {len(self.cover)} lines')
             cover_cc = gitutil.build_email_list(self.get('cover_cc', ''),
                                                 alias)
             all_ccs = itertools.chain(cover_cc, *self._generated_cc.values())
             for email in sorted(set(all_ccs) - to_set - cc_set):
                     print('      Cc: ', email)
         if cmd:
-            print('Git command: %s' % cmd)
+            print(f'Git command: {cmd}')
 
     def MakeChangeLog(self, commit):
         """Create a list of changes for each version.
@@ -223,12 +225,12 @@ class Series(dict):
             if 'sort' in process_it:
                 out = sorted(out)
             have_changes = len(out) > 0
-            line = 'Changes in v%d:' % version
+            line = f'Changes in v{version}:'
             if have_changes:
                 out.insert(0, line)
                 if version < newest_version and len(final) == 0:
                     out.insert(0, '')
-                    out.insert(0, '(no changes since v%d)' % version)
+                    out.insert(0, f'(no changes since v{version})')
                     newest_version = 0
                 # Only add a new line if we output something
                 if need_blank:
@@ -256,10 +258,10 @@ class Series(dict):
                     del changes_copy[version]
                 else:
                     if version > 1:
-                        str = 'Change log missing for v%d' % version
+                        str = f'Change log missing for v{version}'
                         print(col.build(col.RED, str))
             for version in changes_copy:
-                str = 'Change log for unknown version v%d' % version
+                str = f'Change log for unknown version v{version}'
                 print(col.build(col.RED, str))
         elif self.changes:
             str = 'Change log exists, but no version is set'
@@ -339,7 +341,7 @@ class Series(dict):
         """
         col = terminal.Color()
         # Look for commit tags (of the form 'xxx:' at the start of the subject)
-        fname = '/tmp/patman.%d' % os.getpid()
+        fname = f'/tmp/patman.{os.getpid()}'
         fd = open(fname, 'w', encoding='utf-8')
         all_ccs = []
         all_skips = set()
@@ -414,7 +416,7 @@ class Series(dict):
         """
         git_prefix = gitutil.get_default_subject_prefix()
         if git_prefix:
-            git_prefix = '%s][' % git_prefix
+            git_prefix = f'{git_prefix}]['
         else:
             git_prefix = ''
 
@@ -430,7 +432,7 @@ class Series(dict):
         postfix = ''
         if self.get('postfix'):
            postfix = ' %s' % self['postfix']
-        return '%s%sPATCH%s%s' % (git_prefix, prefix, postfix, version)
+        return f'{git_prefix}{prefix}PATCH{postfix}{version}'
 
     def get_links(self, links_str=None, cur_version=None):
         """Look up the patchwork links for each version

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0+
 # Copyright (c) 2011 The Chromium OS Authors.
 #
+"""Run checkpatch.pl on patches and parse what it reports"""
+
 
 import collections
 import concurrent.futures
@@ -258,8 +260,8 @@ def get_warning_msg(col, msg_type, fname, line, msg):
         msg_type = col.build(col.RED, msg_type)
     elif msg_type == 'check':
         msg_type = col.build(col.MAGENTA, msg_type)
-    line_str = '' if line is None else '%d' % line
-    return '%s:%s: %s: %s\n' % (fname, line_str, msg_type, msg)
+    line_str = '' if line is None else f'{line}'
+    return f'{fname}:{line_str}: {msg_type}: {msg}\n'
 
 def check_patches(verbose, args, use_tree, cwd):
     '''Run the checkpatch.pl script on each patch'''
@@ -279,8 +281,9 @@ def check_patches(verbose, args, use_tree, cwd):
                 error_count += result.errors
                 warning_count += result.warnings
                 check_count += result.checks
-                print('%d errors, %d warnings, %d checks for %s:' % (result.errors,
-                        result.warnings, result.checks, col.build(col.BLUE, fname)))
+                print(f'{result.errors} errors, {result.warnings} warnings, '
+                      f'{result.checks} checks for '
+                      f'{col.build(col.BLUE, fname)}:')
                 if (len(result.problems) != result.errors + result.warnings +
                         result.checks):
                     print("Internal error: some problems lost")

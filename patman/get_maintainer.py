@@ -2,6 +2,8 @@
 # Copyright (c) 2012 The Chromium OS Authors.
 # Copyright (c) 2022 Maxim Cournoyer <maxim.cournoyer@savoirfairelinux.com>
 #
+"""Find who to copy on a patch, using get_maintainer.pl or a similar script"""
+
 
 import os
 import shlex

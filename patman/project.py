@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0+
 # Copyright (c) 2012 The Chromium OS Authors.
 #
+"""Detect which project a git tree holds, e.g. U-Boot or Linux"""
+
 
 import os.path
 
