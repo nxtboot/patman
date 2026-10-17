@@ -9,10 +9,11 @@
 import os
 import sys
 
-# Allow 'from patman import xxx to work'
+# Allow 'from patman import xxx' to work, preferring this copy of patman, e.g.
+# a checkout, to one which is installed
 # pylint: disable=C0413
 our_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(our_path, '..'))
+sys.path.insert(0, os.path.join(our_path, '..'))
 
 # Our modules
 from patman import cmdline

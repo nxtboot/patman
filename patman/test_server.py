@@ -385,13 +385,13 @@ class TestWebServer(unittest.TestCase, TestCommon):
         self.assertEqual((200, {'hash': oid[:10], 'text': 'line 1\nline 2\n'}),
                          (status, data))
 
-        for params, msg in (
-                ([('hash', '1234567')], 'The file is not in the git repo'),
-                ([], 'The file is not in the git repo'),
-                ([('hash', '--help')], "Invalid blob hash '--help'"),
-                ([('hash', binary)], 'File is not text')):
+        for params, code, msg in (
+                ([('hash', '1234567')], 404, 'The file is not in the git repo'),
+                ([], 404, 'The file is not in the git repo'),
+                ([('hash', '--help')], 400, "Invalid blob hash '--help'"),
+                ([('hash', binary)], 404, 'File is not text')):
             status, data = self.call(srv, 'GET', '/api/blob', params=params)
-            self.assertEqual((404, {'error': msg}), (status, data))
+            self.assertEqual((code, {'error': msg}), (status, data))
 
     def test_pwork_per_upstream(self):
         """Each upstream uses its own patchwork URL"""
@@ -687,7 +687,7 @@ class TestWebServer(unittest.TestCase, TestCommon):
             ('POST', f'/api/reviews/{series_id}/redraft', {'seqs': [2, 0]}),
             ('POST', '/api/review', {'title': ''}),
         ])
-        self.assertEqual([202, 202, 202, 404], [status for status, _ in res])
+        self.assertEqual([202, 202, 202, 400], [status for status, _ in res])
         self.assertEqual('Review series 123', res[0][1]['title'])
         self.assertTrue(res[0][1]['queued'] or res[0][1]['running'])
         self.assertIn('Please give a series', res[3][1]['error'])
@@ -720,7 +720,7 @@ class TestWebServer(unittest.TestCase, TestCommon):
             ('POST', path, {}),
             ('POST', path, {'seqs': 'all'}),
         ], each=True)
-        self.assertEqual([202, 202, 404], [status for status, _ in res])
+        self.assertEqual([202, 202, 400], [status for status, _ in res])
         self.assertEqual(["Send the cover letter of 'Somebody else' v1",
                           "Send reviews of 'Somebody else' v1"],
                          [res[0][1]['title'], res[1][1]['title']])
@@ -744,7 +744,7 @@ class TestWebServer(unittest.TestCase, TestCommon):
             ('POST', path, {'note': ' '}),
             ('POST', path, {'note': 'x', 'seqs': ['1']}),
         ], each=True)
-        self.assertEqual([202, 202, 404, 404], [status for status, _ in res])
+        self.assertEqual([202, 202, 400, 400], [status for status, _ in res])
         self.assertEqual("Revise patch 1 of 'Somebody else' v1",
                          res[0][1]['title'])
         self.assertEqual("Revise reviews of 'Somebody else' v1",
@@ -853,7 +853,7 @@ class TestWebServer(unittest.TestCase, TestCommon):
             ('POST', f'/api/review-items/{rid}', {'body': ' '}),
             ('POST', '/api/review-items/999', {'body': 'x'}),
         ], each=True)
-        self.assertEqual([200, 202, 200, 409, 404, 404],
+        self.assertEqual([200, 202, 200, 409, 400, 404],
                          [status for status, _ in res])
         self.assertTrue(res[2][1]['approved'])
         res = res[:2] + res[3:]

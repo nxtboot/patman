@@ -141,7 +141,10 @@ a.card:active { background: var(--code-bg); }
 .diff .del { background: rgba(248, 81, 73, 0.16); }
 .diff .hunk { color: var(--link); }
 .diff .file { font-weight: 700; margin-top: 8px; }
-.diff .file a { color: var(--link); text-decoration: none; }
+.diff .file a.view { padding: 0 6px;
+                   border: 1px solid var(--border); border-radius: 4px;
+                   color: var(--link); text-decoration: none;
+                   font-weight: 500; }
 .diff .ctx { background: var(--surface); }
 .diff .expand { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline;
                 position: sticky; left: 0; padding: 3px 10px; color: var(--muted);

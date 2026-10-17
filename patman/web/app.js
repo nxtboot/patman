@@ -523,7 +523,7 @@ function diffGap(file, lo, count, after, before) {
       after && btn(`↓ ${CONTEXT_LINES} more`, CONTEXT_LINES, 0),
       before && btn(`↑ ${CONTEXT_LINES} more`, 0, CONTEXT_LINES),
       n !== null && n > CONTEXT_LINES && btn(`All ${n}`, n, 0),
-      h('a', { href: fileHref(file, near()) }, 'Whole file'),
+      h('a', { href: fileHref(file, near()) }, 'View whole file'),
       n !== null && h('span', {}, `${plural(n, 'line')} from ${first + ntop}`),
     ].filter(Boolean));
   };
@@ -572,7 +572,8 @@ function renderDiff(diff) {
         file = files.get(idx);
         prev = null;
         out.push(h('span', { class: 'file' }, file.old || file.new
-          ? h('a', { href: fileHref(file, file.at) }, line) : line));
+          ? [h('a', { class: 'view', href: fileHref(file, file.at) }, 'View file'),
+             ' '] : null, line));
         return;
       }
       const r = file && line.startsWith('@@') && chunkRange(line);

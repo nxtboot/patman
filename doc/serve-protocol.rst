@@ -49,8 +49,8 @@ An error is reported as a JSON object with an ``error`` string, using these
 status codes:
 
 - 401: the token is missing or wrong
-- 404: the thing asked for does not exist, or patchwork does not have it; also
-  used when a request is not valid, e.g. a missing field or a bad value
+- 400: the request is not valid, e.g. a missing field or a bad value
+- 404: the thing asked for does not exist, or patchwork does not have it
 - 409: the request conflicts with the current state, e.g. starting a sync while
   one is running, or changing a review while a job is acting on it
 - 502: patchwork could not be reached or did not respond in time; the message

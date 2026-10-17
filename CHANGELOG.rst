@@ -76,6 +76,8 @@ Added
 
 Changed
 ~~~~~~~
+- The ``patman serve`` API gives status 400 for a request which is not
+  valid, e.g. with a bad value or a missing field, rather than 404.
 - Patchwork requests are retried when the connection fails, is reset or
   stalls, or the server returns a 502, 503 or 504 status. The timeout is set
   with ``--patchwork-timeout`` or the ``patchwork_timeout`` setting.
