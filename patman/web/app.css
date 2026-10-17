@@ -247,3 +247,10 @@ input[type=password] {
 .jobstrip .notes { margin-top: 6px; }
 button.link { background: none; border: 0; padding: 0; color: var(--link);
               font: inherit; cursor: pointer; }
+/* Number of jobs waiting or running, on the Jobs tab */
+nav a { position: relative; }
+nav a .badge:empty { display: none; }
+nav a .badge { position: absolute; top: 2px; left: 50%; margin-left: 6px;
+               min-width: 16px; padding: 0 4px; border-radius: 8px;
+               background: var(--st-review); color: #fff; font-size: 11px;
+               line-height: 16px; text-align: center; }

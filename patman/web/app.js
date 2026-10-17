@@ -196,11 +196,37 @@ const titleEl = document.getElementById('title');
 const backBtn = document.getElementById('back');
 backBtn.addEventListener('click', () => history.back());
 
+// The last screen shown in each tab, and the scroll position of each screen,
+// so that going back to a tab or a screen finds it as it was left. These
+// are kept for the browser tab, if the browser allows
+function loadPlaces(key) {
+  try {
+    return new Map(JSON.parse(sessionStorage.getItem(key) || '[]'));
+  } catch (err) {
+    return new Map();
+  }
+}
+function savePlaces(key, map) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify([...map].slice(-100)));
+  } catch (err) {
+    // Not available, e.g. in a private window
+  }
+}
+const tabScreens = loadPlaces('patman-tabs');
+const scrollPlaces = loadPlaces('patman-scroll');
+let currentTab = null;
+
 function setView(title, tab, back, ...content) {
   titleEl.textContent = title;
   backBtn.hidden = !back;
   for (const a of document.querySelectorAll('nav a')) {
     a.classList.toggle('active', a.dataset.tab === tab);
+  }
+  if (tab) {
+    currentTab = tab;
+    tabScreens.set(tab, location.hash);
+    savePlaces('patman-tabs', tabScreens);
   }
   main.replaceChildren(...content.flat().filter((c) => c !== null && c !== undefined && c !== false));
 }
@@ -678,6 +704,7 @@ const REVIEW_STATUS = {
 async function startJob(path, data, msg) {
   try {
     const job = await api(path, { json: data || {} });
+    refreshJobCount();
     location.hash = `#/jobs/${job.id}`;
   } catch (err) {
     if (msg) msg.textContent = err.message;
@@ -747,6 +774,7 @@ async function trackJob(job, verb, targets, refresh) {
     t.show();
   });
   lock(true);
+  refreshJobCount();
   progress(job);
   for (;;) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -1260,8 +1288,31 @@ function syncOk(state) {
   return !state.cancelled && state.results.every((r) => r.returncode === 0);
 }
 
+// Show the number of jobs which are waiting or running on the Jobs tab,
+// checking again every few seconds while there are any
+let jobCountTimer = null;
+async function refreshJobCount() {
+  clearTimeout(jobCountTimer);
+  let jobs;
+  try {
+    jobs = await api('jobs');
+  } catch (err) {
+    return;
+  }
+  const count = jobs.filter((job) => !job.finished).length;
+  const tab = document.querySelector('nav a[data-tab="jobs"]');
+  let badge = tab.querySelector('.badge');
+  if (!badge) {
+    badge = h('span', { class: 'badge' });
+    tab.append(badge);
+  }
+  badge.textContent = count || '';
+  if (count) jobCountTimer = setTimeout(refreshJobCount, 3000);
+}
+
 async function refreshSync() {
   const wasRunning = syncState && syncState.running;
+  refreshJobCount();
   try {
     syncState = await api('sync');
   } catch (err) {
@@ -1436,7 +1487,37 @@ async function route() {
   }
 }
 
-window.addEventListener('hashchange', () => { window.scrollTo(0, 0); route(); });
+// Tapping a tab goes back to the screen last shown in it; tapping the tab
+// being shown goes to its top level
+for (const a of document.querySelectorAll('nav a')) {
+  a.addEventListener('click', (event) => {
+    const tab = a.dataset.tab;
+    const last = tabScreens.get(tab);
+    if (tab !== currentTab && last && last !== location.hash) {
+      event.preventDefault();
+      location.hash = last;
+    }
+  });
+}
+
+// Remember where each screen is scrolled to, and go back there on returning
+let scrollSave = null;
+window.addEventListener('scroll', () => {
+  clearTimeout(scrollSave);
+  scrollSave = setTimeout(() => {
+    scrollPlaces.delete(location.hash);
+    scrollPlaces.set(location.hash, window.scrollY);
+    savePlaces('patman-scroll', scrollPlaces);
+  }, 200);
+});
+
+window.addEventListener('hashchange', async () => {
+  clearTimeout(scrollSave);
+  window.scrollTo(0, 0);
+  await route();
+  const y = scrollPlaces.get(location.hash);
+  if (y) window.scrollTo(0, y);
+});
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { refreshSync(); }
 });

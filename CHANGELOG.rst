@@ -17,6 +17,9 @@ Added
   review or start another job on it, and the page disables its buttons, even
   after a reload. ``patman review --revise`` leaves a review alone if it
   changed while being revised, and shows the revised text instead.
+- Each tab of the ``patman serve`` page remembers the screen last shown in
+  it, each screen keeps its scroll position, and the Jobs tab shows how many
+  jobs are waiting or running.
 - ``patman review --revise``, and revising on the ``patman serve`` page,
   give the agent the cover letter, the other reviews of the series, the
   comments from patchwork and the reviewer's writing voice, so that the
