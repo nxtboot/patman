@@ -5,7 +5,7 @@ Common problems
 
 These are messages you may see when using patman, what causes them and how
 to deal with them. The output is from patman, run on branches of the U-Boot
-tree.
+tree and on series on patchwork.
 
 The upstream branch is not known
 --------------------------------
@@ -119,3 +119,46 @@ The series is about to go to a different list from the one its upstream
 sends to. Fix the ``Series-to:`` tag, drop it and let the upstream give the
 address, or check that the series has the right upstream (see
 :doc:`upstreams`).
+
+The review agent is not available
+---------------------------------
+
+::
+
+    $ patman review -s 155 -U ci
+    ...
+    Claude Agent SDK not available
+    Install with: pip install claude-agent-sdk
+    Failed to apply patches to branch
+
+``patman review`` needs the Claude Agent SDK, which comes with the review
+extra: ``pip install patch-manager[review]``. The agent also needs Claude Code
+to be logged in (see :doc:`reviewing`).
+
+Patchwork cannot be reached
+---------------------------
+
+::
+
+    $ patman review -s 508846 -U us
+    ...
+    Downloading mbox for series 508846 from https://patchwork.ozlabs.org
+    patman: ClientConnectorError: Cannot connect to host patchwork.ozlabs.org:443 ssl:default [Network is unreachable]
+
+The patchwork server did not answer. Check that you can reach it, e.g. by
+opening it in a browser; if it is down, try again later. A server which is
+just slow is retried a few times, and ``patchwork_timeout`` in ``~/.patman``
+sets how long to wait (see :doc:`/configuration`).
+
+There is nothing to review
+--------------------------
+
+::
+
+    $ patman review -s 150 -U ci
+    ...
+    Nothing to review for 'pw-150-review': every patch is already applied upstream
+
+The series has been merged, so applying it to the upstream branch adds
+nothing. To review it anyway, give a branch from before it was merged with
+``-b``, as :doc:`reviewing` does.
