@@ -18,6 +18,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from u_boot_pylib import terminal
+from u_boot_pylib import tools
 from patman import cmdline
 from patman import control
 from patman import cseries
@@ -236,7 +237,7 @@ class TestWebServer(unittest.TestCase, TestCommon):
         self.assertEqual(
             {'id': rid, 'seq': 1, 'body': '> code\nLooks good',
              'approved': True, 'timestamp': '2026-10-01 10:00:00',
-             'status': 'draft', 'replies': []},
+             'status': 'draft', 'replies': [], 'job': None},
             latest['reviews'][1])
         self.assertEqual(['old review'],
                          [r['body'] for r in data['versions'][1]['reviews']])
@@ -640,24 +641,31 @@ class TestWebServer(unittest.TestCase, TestCommon):
                 parse(data, ups)
             self.assertIn(msg, str(exc.exception))
 
-    def run_jobs(self, srv, calls):
+    def run_jobs(self, srv, calls, each=False):
         """Make requests to a server, then wait for its jobs to finish
 
         Args:
             srv (Server): Server to use
             calls (list of tuple): (method, path, json) for each request
+            each (bool): True to wait for the jobs after each request, so
+                that each one is free to act on the reviews
 
         Return:
             list of tuple: (status, data) for each request
         """
+        async def _wait():
+            while any(job.active for job in srv.get_jobs()):
+                await asyncio.sleep(0.01)
+
         async def _go():
             out = []
             async with TestClient(TestServer(srv.make_app())) as client:
                 for method, path, data in calls:
                     resp = await client.request(method, path, json=data)
                     out.append((resp.status, await resp.json()))
-                while any(job.active for job in srv.get_jobs()):
-                    await asyncio.sleep(0.01)
+                    if each:
+                        await _wait()
+                await _wait()
             return out
 
         loop = asyncio.new_event_loop()
@@ -711,7 +719,7 @@ class TestWebServer(unittest.TestCase, TestCommon):
             ('POST', path, {'seqs': [0]}),
             ('POST', path, {}),
             ('POST', path, {'seqs': 'all'}),
-        ])
+        ], each=True)
         self.assertEqual([202, 202, 404], [status for status, _ in res])
         self.assertEqual(["Send the cover letter of 'Somebody else' v1",
                           "Send reviews of 'Somebody else' v1"],
@@ -735,7 +743,7 @@ class TestWebServer(unittest.TestCase, TestCommon):
             ('POST', path, {'note': 'Approve them all'}),
             ('POST', path, {'note': ' '}),
             ('POST', path, {'note': 'x', 'seqs': ['1']}),
-        ])
+        ], each=True)
         self.assertEqual([202, 202, 404, 404], [status for status, _ in res])
         self.assertEqual("Revise patch 1 of 'Somebody else' v1",
                          res[0][1]['title'])
@@ -749,6 +757,74 @@ class TestWebServer(unittest.TestCase, TestCommon):
              'review -s 100 --revise Approve them all -U us'],
             [job.state['results'][0]['output'].strip()
              for job in reversed(srv.get_jobs())])
+
+    def test_review_lock(self):
+        """A review cannot be changed while a job is acting on it"""
+        series_id, svids = self.add_series(
+            'rev', 'Somebody else', {1: [('a', 'new', 5, 0)]}, ups='us',
+            source='review')
+        db = self.cser.db
+        cover = db.review_add(svids[1], 0, 'Cover', False,
+                              '2026-10-01 10:00:00')
+        rid = db.review_add(svids[1], 1, 'Looks good', True,
+                            '2026-10-01 10:00:00')
+        db.commit()
+        srv = self.make_server()
+        flag = os.path.join(self.tmpdir, 'flag')
+        srv.get_patman_cmd = lambda *args: [
+            'sh', '-c', f'while [ ! -e {flag} ]; do sleep 0.05; done']
+        path = f'/api/reviews/{series_id}'
+
+        async def _go():
+            out = {}
+            async with TestClient(TestServer(srv.make_app())) as client:
+                async def call(method, url, data=None):
+                    resp = await client.request(method, url, json=data)
+                    return resp.status, await resp.json()
+
+                # Revise patch 1, which locks just its review
+                status, job = await call('POST', f'{path}/revise',
+                                         {'seqs': [1], 'note': 'Fix it'})
+                out['started'] = status, job['target']
+                _, data = await call('GET', path)
+                out['marked'] = [rev['job'] for rev in
+                                 data['versions'][0]['reviews']]
+                out['again'] = (await call('POST', f'{path}/redraft',
+                                           {'seqs': [1]}))[0]
+                out['all'] = (await call('POST', f'{path}/send', {}))[0]
+                out['edit'] = await call('POST', f'/api/review-items/{rid}',
+                                         {'body': 'Changed'})
+                out['other'] = (await call('POST',
+                                           f'/api/review-items/{cover}',
+                                           {'body': 'New cover'}))[0]
+
+                # Once the job finishes, the review can be changed again
+                tools.write_file(flag, b'')
+                while any(job.active for job in srv.get_jobs()):
+                    await asyncio.sleep(0.01)
+                _, data = await call('GET', path)
+                out['after'] = [rev['job'] for rev in
+                                data['versions'][0]['reviews']]
+                out['free'] = (await call('POST', f'/api/review-items/{rid}',
+                                          {'body': 'Changed'}))[0]
+            return out
+
+        loop = asyncio.new_event_loop()
+        try:
+            out = loop.run_until_complete(_go())
+        finally:
+            loop.close()
+        self.assertEqual((202, {'series': series_id, 'version': 1,
+                                'seqs': [1]}), out['started'])
+        self.assertEqual([None, 1], out['marked'])
+        self.assertEqual(409, out['again'])
+        self.assertEqual(409, out['all'])
+        self.assertEqual(409, out['edit'][0])
+        self.assertIn('already acting on this review', out['edit'][1]['error'])
+        self.assertEqual(200, out['other'])
+        self.assertEqual([None, None], out['after'])
+        self.assertEqual(200, out['free'])
+        self.assertEqual('Changed', db.review_get(rid).body)
 
     def test_edit_review(self):
         """A review which has not been sent can be changed and redrafted"""
@@ -776,7 +852,7 @@ class TestWebServer(unittest.TestCase, TestCommon):
             ('POST', f'/api/review-items/{sent}', {'body': 'x'}),
             ('POST', f'/api/review-items/{rid}', {'body': ' '}),
             ('POST', '/api/review-items/999', {'body': 'x'}),
-        ])
+        ], each=True)
         self.assertEqual([200, 202, 200, 409, 404, 404],
                          [status for status, _ in res])
         self.assertTrue(res[2][1]['approved'])
@@ -930,7 +1006,7 @@ class TestWebServer(unittest.TestCase, TestCommon):
         self.assertEqual(
             [{'kind': 'review', 'title': 'Review series 1',
               'cmds': [['sh', '-c', f'echo busy; [ -e {flag} ] || sleep 10']],
-              'resumed': 0}], read_jobs())
+              'resumed': 0, 'target': None}], read_jobs())
 
         # A new server runs the first job again
         with open(flag, 'w', encoding='utf-8'):

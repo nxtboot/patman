@@ -741,6 +741,12 @@ async function trackJob(job, verb, targets, refresh) {
   };
   const progress = (st) => targets.forEach((t) => say(t, 'busy',
     h('span', {}, `${verb}… ${st.queued ? 'waiting' : 'running'}`), ' ', output()));
+  // The reviews cannot be changed until the job finishes
+  const lock = (busy) => targets.forEach((t) => {
+    t.busy = busy;
+    t.show();
+  });
+  lock(true);
   progress(job);
   for (;;) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -757,6 +763,7 @@ async function trackJob(job, verb, targets, refresh) {
     }
     const [status] = jobStatus(st);
     if (status !== 'ok') {
+      lock(false);
       targets.forEach((t) => say(t, 'failed', h('span', {}, `${verb} ${status}`),
                                  ' ', output()));
       return;
@@ -766,6 +773,7 @@ async function trackJob(job, verb, targets, refresh) {
       const old = before.get(t.r.id);
       const now = fresh.get(t.r.id);
       if (now) Object.assign(t.r, now);
+      t.busy = false;
       t.show();
       const changed = now && now.body !== old;
       const was = h('div', { class: 'notes', hidden: true },
@@ -812,7 +820,6 @@ async function viewReview(id, wantVer) {
     const targets = sv.reviews.filter((r) => (seqs.length ? seqs.includes(r.seq)
                                                           : want(r)))
       .map((r) => entries.get(r.id));
-    targets.forEach((t) => t.show());
     trackJob(job, verb, targets, refresh);
   };
   const redraft = (seqs) => runHere(`reviews/${id}/redraft`, {}, seqs, 'Redraft',
@@ -845,11 +852,13 @@ async function viewReview(id, wantVer) {
       comment, r.status === 'draft', cancel,
       (text, redraft) => saveReview(r, splice(text), redraft, entries.get(r.id),
                                     refresh));
+    // A review can be changed if it has not been sent and no job is acting on it
+    const free = () => unsent(r) && !(entries.get(r.id) || {}).busy;
     const show = () => card.replaceChildren(header,
-      renderMail(r.body, unsent(r) ? ask : null, unsent(r) ? editChunk : null),
-      (mailBtn || unsent(r)) && h('div', { class: 'actions' },
+      renderMail(r.body, free() ? ask : null, free() ? editChunk : null),
+      (mailBtn || free()) && h('div', { class: 'actions' },
         mailBtn,
-        unsent(r) && [
+        free() && [
           h('button', { class: 'btn light small',
                         onclick: () => editReview(card, r, header, show,
                                                   entries.get(r.id), refresh) },
@@ -861,11 +870,20 @@ async function viewReview(id, wantVer) {
                                                 () => send([r.seq]))]),
       ...(mailBox ? [mailBox] : []),
       ...(r.replies || []).map(replyBox));
-    entries.set(r.id, { r, strip, show });
+    entries.set(r.id, { r, strip, show, busy: false });
     show();
     return card;
   };
   const reviews = sv.reviews.map(reviewCard);
+  // Show the jobs which were already acting on reviews, e.g. after a reload
+  const byJob = new Map();
+  sv.reviews.filter((r) => r.job).forEach((r) => {
+    byJob.set(r.job, [...(byJob.get(r.job) || []), entries.get(r.id)]);
+  });
+  byJob.forEach(async (targets, jid) => {
+    const st = await api(`jobs/${jid}`).catch(() => null);
+    if (st) trackJob(st, st.title.split(' ')[0], targets, refresh);
+  });
   const anyUnsent = sv.reviews.some(unsent);
   const drafts = sv.reviews.filter((r) => r.status === 'draft').length;
   const reviseAll = h('div', {});

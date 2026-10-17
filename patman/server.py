@@ -637,6 +637,10 @@ def parse_review_req(data, upstreams):
     return args, f'Review {desc}'
 
 
+class JobBusyError(Exception):
+    """A job is already acting on a review which a request would change"""
+
+
 class Job:
     """A background task which runs patman commands one after the other
 
@@ -649,7 +653,7 @@ class Job:
         state (dict): State of the job, as provided by the API
     """
     # pylint: disable=R0913,R0917
-    def __init__(self, idnum, kind, title, cmds, resumed=0):
+    def __init__(self, idnum, kind, title, cmds, resumed=0, target=None):
         """Set up a new job
 
         Args:
@@ -659,6 +663,9 @@ class Job:
             cmds (list of list of str): Commands to run
             resumed (int): Number of times the job has been resumed after
                 the server stopped while it was waiting or running
+            target (dict or None): Reviews which the job acts on, with the
+                review series ID ('series'), its version ('version') and the
+                patches ('seqs', empty for all unsent reviews), or None
         """
         self.idnum = idnum
         self.kind = kind
@@ -676,6 +683,7 @@ class Job:
             'finished': None,
             'results': [],
             'resumed': resumed,
+            'target': target,
         }
 
     @property
@@ -841,25 +849,27 @@ class Server:
         """
         return [sys.executable, '-m', 'patman', '-v', *args]
 
-    def add_job(self, kind, title, cmds):
+    def add_job(self, kind, title, cmds, target=None):
         """Add a job and start it once the jobs before it have finished
 
         Args:
             kind (str): Kind of job
             title (str): Description of the job, for display
             cmds (list of list of str): Commands to run
+            target (dict or None): Reviews which the job acts on (see Job)
 
         Return:
             Job: New job
         """
-        job = self._new_job(kind, title, cmds)
+        job = self._new_job(kind, title, cmds, target=target)
         asyncio.create_task(self.run_job(job))
         return job
 
-    def _new_job(self, kind, title, cmds, resumed=0):
+    # pylint: disable=R0913,R0917
+    def _new_job(self, kind, title, cmds, resumed=0, target=None):
         """Create a job and remember it, dropping old jobs if needed"""
         self._last_job += 1
-        job = Job(self._last_job, kind, title, cmds, resumed)
+        job = Job(self._last_job, kind, title, cmds, resumed, target)
         self._jobs[job.idnum] = job
         for old in list(self._jobs.values()):
             if len(self._jobs) <= MAX_JOBS:
@@ -879,7 +889,8 @@ class Server:
         if not self.jobs_fname:
             return
         jobs = [{'kind': job.kind, 'title': job.state['title'],
-                 'cmds': job.cmds, 'resumed': job.state['resumed']}
+                 'cmds': job.cmds, 'resumed': job.state['resumed'],
+                 'target': job.state['target']}
                 for job in self._jobs.values()
                 if job.kind != 'sync' and job.unfinished]
         tmp = f'{self.jobs_fname}.tmp'
@@ -910,7 +921,8 @@ class Server:
                              f'been resumed {MAX_RESUMES} times')
                 continue
             tout.notice(f"Resuming job '{title}'")
-            job = self._new_job(item['kind'], title, item['cmds'], resumed)
+            job = self._new_job(item['kind'], title, item['cmds'], resumed,
+                                item.get('target'))
             asyncio.create_task(self.run_job(job))
             jobs.append(job)
         self.save_jobs()
@@ -1156,6 +1168,8 @@ class Server:
         """Turn errors into a JSON response"""
         try:
             return await handler(request)
+        except JobBusyError as exc:
+            return web.json_response({'error': str(exc)}, status=409)
         except ValueError as exc:
             return web.json_response({'error': str(exc)}, status=404)
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
@@ -1216,7 +1230,15 @@ class Server:
         self.rcser.commit()
 
     async def _review_detail(self, request):
-        data = get_review_detail(self.rcser, int(request.match_info['idnum']))
+        idnum = int(request.match_info['idnum'])
+        data = get_review_detail(self.rcser, idnum)
+        # Mark the reviews which a job is acting on, so the page can wait
+        for ver in data['versions']:
+            pending = self.pending_jobs(idnum, ver['version'])
+            for item in ver['reviews']:
+                done = item['status'] in ('sent', 'replied')
+                item['job'] = pending.get(item['seq'],
+                                          None if done else pending.get(None))
         # 'patman review' uses the default upstream when none is given, so
         # a series reviewed that way is on its patchwork server
         data['upstream'] = (data['upstream'] or
@@ -1328,19 +1350,62 @@ class Server:
             raise ValueError('Request must be a JSON object')
         return data
 
-    def _review_job(self, title, *args):
+    def _review_job(self, title, *args, target=None):
         """Start a job which runs 'patman review'
 
         Args:
             title (str): Description of the job
             args (list of str): Arguments for 'patman review'
+            target (dict or None): Reviews which the job acts on (see Job)
 
         Return:
             web.Response: Response giving the job state
         """
         cmd = self.get_patman_cmd('review', *args, *self._review_db_args())
-        job = self.add_job('review', title, [cmd])
+        job = self.add_job('review', title, [cmd], target)
         return web.json_response(job.state, status=202)
+
+    def pending_jobs(self, idnum, version):
+        """Find the jobs which are waiting or running for a review series
+
+        Args:
+            idnum (int): Series ID in the review database
+            version (int): Version of the series
+
+        Return:
+            dict: Map of patch number to the ID of the job acting on its
+                review, with None for a job acting on all unsent reviews
+        """
+        out = {}
+        for job in self._jobs.values():
+            target = job.state['target']
+            if (job.active and target and target['series'] == idnum and
+                    target['version'] == version):
+                for seq in target['seqs'] or [None]:
+                    out.setdefault(seq, job.idnum)
+        return out
+
+    def check_free(self, idnum, version, seqs, unsent):
+        """Check that no job is acting on some reviews
+
+        Args:
+            idnum (int): Series ID in the review database
+            version (int): Version of the series
+            seqs (list of int): Patches whose reviews are to be changed, or
+                empty for all unsent reviews
+            unsent (list of int): Patches whose reviews have not been sent
+
+        Raises:
+            ValueError: A job is waiting or running for one of the reviews
+        """
+        pending = self.pending_jobs(idnum, version)
+        busy = None in pending or any(seq in pending
+                                      for seq in (seqs or unsent))
+        if not busy and not seqs:
+            busy = bool(pending)
+        if busy:
+            raise JobBusyError('A job is already acting on this review; '
+                               'wait for it to finish')
 
     async def _review_post(self, request):
         data = await self._read_json(request)
@@ -1373,9 +1438,11 @@ class Server:
             tuple:
                 list of str: Arguments for 'patman review'
                 str: Series and version, for the job title, e.g. "'foo' v2"
+                dict: Reviews which the job acts on, as a job target
 
         Raises:
             ValueError: The seqs are invalid, or the version has no link
+            JobBusyError: A job is already acting on one of the reviews
         """
         if not isinstance(seqs, list) or not all(
                 isinstance(seq, int) and seq >= 0 for seq in seqs):
@@ -1385,12 +1452,28 @@ class Server:
         link = self.rcser.db.ser_ver_get_link(idnum, version)
         if not link:
             raise ValueError(f"Series '{name}' v{version} has no link")
+        self.check_free(idnum, version, seqs, self._unsent(idnum, version))
         args = ['-s', str(link), *action]
         if seqs:
             args += ['-i', ','.join(str(seq) for seq in sorted(seqs))]
         if ups:
             args += ['-U', ups]
-        return args, f"'{desc or name}' v{version}"
+        target = {'series': idnum, 'version': version, 'seqs': sorted(seqs)}
+        return args, f"'{desc or name}' v{version}", target
+
+    def _unsent(self, idnum, version):
+        """Get the patches whose reviews have not been sent
+
+        Args:
+            idnum (int): Series ID in the review database
+            version (int): Version of the series
+
+        Return:
+            list of int: Patch numbers, 0 for the cover letter
+        """
+        svr = self.rcser.get_ser_ver(idnum, version)
+        return [rev.seq for rev in self.rcser.db.review_get_for_version(
+            svr.idnum) if rev.status not in ('sent', 'replied')]
 
     def _redraft_job(self, idnum, version, seqs):
         """Start a job which recreates the Gmail drafts for a review
@@ -1404,17 +1487,18 @@ class Server:
         Return:
             web.Response: Response giving the job state
         """
-        args, what = self._series_review_args(idnum, version, seqs,
-                                              '--redraft')
-        return self._review_job(f'Redraft {what}', *args)
+        args, what, target = self._series_review_args(idnum, version, seqs,
+                                                      '--redraft')
+        return self._review_job(f'Redraft {what}', *args, target=target)
 
     async def _send(self, request):
         idnum = int(request.match_info['idnum'])
         data = await self._read_json(request)
         seqs = data.get('seqs') or []
-        args, what = self._series_review_args(
+        args, what, target = self._series_review_args(
             idnum, _get_int(data, 'version'), seqs, '--send')
-        return self._review_job(f'Send {_parts_text(seqs)} of {what}', *args)
+        return self._review_job(f'Send {_parts_text(seqs)} of {what}', *args,
+                                target=target)
 
     async def _revise(self, request):
         idnum = int(request.match_info['idnum'])
@@ -1430,12 +1514,12 @@ class Server:
             note = f'About this part of the review:\n\n{part.strip()}' \
                    f'\n\n{note}'
         seqs = data.get('seqs') or []
-        args, what = self._series_review_args(
+        args, what, target = self._series_review_args(
             idnum, _get_int(data, 'version'), seqs, '--revise', note)
         if data.get('drafts'):
             args.append('-d')
         return self._review_job(f'Revise {_parts_text(seqs)} of {what}',
-                                *args)
+                                *args, target=target)
 
     async def _review_item(self, request):
         db = self.rcser.db
@@ -1447,13 +1531,14 @@ class Server:
         body = data.get('body', rev.body)
         if not isinstance(body, str) or not body.strip():
             raise ValueError('The review cannot be empty')
+        svr = db.ser_ver_get_by_id(rev.svid)
+        self.check_free(svr.series_id, svr.version, [rev.seq], [rev.seq])
         # Unless told otherwise, the review approves if it gives the tag
         approved = data.get('approved')
         if approved is None:
             approved = bool(RE_REVIEWED_BY.search(body))
         db.review_set_body(rev.idnum, body, approved)
         self.rcser.commit()
-        svr = db.ser_ver_get_by_id(rev.svid)
         if data.get('redraft'):
             return self._redraft_job(svr.series_id, svr.version, [rev.seq])
         return web.json_response(_review_info(db.review_get(rev.idnum)))

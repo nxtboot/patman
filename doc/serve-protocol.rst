@@ -52,7 +52,7 @@ status codes:
 - 404: the thing asked for does not exist, or patchwork does not have it; also
   used when a request is not valid, e.g. a missing field or a bad value
 - 409: the request conflicts with the current state, e.g. starting a sync while
-  one is running
+  one is running, or changing a review while a job is acting on it
 - 502: patchwork could not be reached or did not respond in time; the message
   starts with ``Patchwork:``
 
@@ -119,6 +119,10 @@ A review of one patch, or of the cover letter:
   ``deleted``
 - ``replies`` (list of Reply): replies to the review, oldest first; only given
   by ``GET /api/reviews/<id>``
+- ``job`` (int or null): number of the job which is waiting or running to act
+  on the review, e.g. to revise or send it, or null if there is none; only
+  given by ``GET /api/reviews/<id>``. While there is one, requests which would
+  change the review, or start another job on it, get status 409
 
 Reply
 ~~~~~
@@ -160,6 +164,10 @@ A job runs one or more commands in the git tree, such as a sync or a review:
 
 - ``resumed`` (int): number of times the job has been run again after the
   server stopped before it finished; see `Resuming jobs`_
+- ``target`` (object or null): the reviews which the job acts on, for jobs
+  started on a reviewed series, with the series ``series`` (int), its
+  ``version`` (int) and the patches ``seqs`` (list of int, empty for all the
+  unsent reviews); null for other jobs
 
 Your series
 -----------

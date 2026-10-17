@@ -1162,6 +1162,32 @@ class TestReview(CseriesTester):
         self.assertIn('Could not resume the review session', out)
         self.assertEqual(new_body, db.review_get(rid).body)
 
+        # A review which changes while it is revised is left alone
+        db.review_set_body(rid, 'Hi Fred,\n\nNit', False)
+        db.commit()
+
+        async def edit_meanwhile(_prompt, _options):
+            db.review_set_body(rid, 'Edited by hand', False)
+            db.commit()
+            return True, f'---SEQ 1---\n{new_body}\n'
+
+        with mock.patch.object(review.core.claude_mod, 'run_agent_collect',
+                               side_effect=edit_meanwhile), \
+                mock.patch.object(review.core.claude_mod, 'check_available',
+                                  return_value=True), \
+                mock.patch.object(review.common, 'ClaudeAgentOptions'), \
+                mock.patch.object(review.stored, '_review_commits',
+                                  return_value=['abc1 dm: Fix it']), \
+                terminal.capture() as (out, err):
+            args = cmdline.parse_args(
+                ['review', '-s', '123', '--revise', 'Approve it', '-i', '1'],
+                config_fname=False)
+            self.assertEqual(
+                0, review.stored._do_revise(args, None, cser, '123'))
+        self.assertEqual('Edited by hand', db.review_get(rid).body)
+        self.assertIn('changed while it was being revised', err.getvalue())
+        self.assertIn(new_body, out.getvalue())
+
         # Revising more than one review starts a new session
         db.review_set_body(rid, 'Hi Fred,\n\nNit', False)
         results[:] = [(True, f'---SEQ 1---\n{new_body}\n')]

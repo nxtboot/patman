@@ -257,6 +257,37 @@ def _read_series_context(ctx, pwork, link):
         tout.warning(f'Could not read the series from patchwork: {exc}')
 
 
+def _save_revisions(cser, reviews, changed):
+    """Store the revised text of each review which the agent changed
+
+    A review which was changed or sent while it was being revised is left as
+    it is, and the revised text is shown instead, so that nothing is lost.
+
+    Args:
+        cser (Cseries): Open cseries instance
+        reviews (list of Review): Reviews which were revised, as they were
+            before the agent changed them
+        changed (dict): Map of seq to new review body text; updated to hold
+            only the reviews which were stored
+    """
+    for rev in reviews:
+        if rev.seq not in changed:
+            continue
+        body = changed[rev.seq]
+        now = cser.db.review_get(rev.idnum)
+        if now.body != rev.body or now.status != rev.status:
+            tout.warning(f'The review of {_review_label(rev.seq)} changed '
+                         'while it was being revised, so it is left as it '
+                         'is. The revised text was:')
+            del changed[rev.seq]
+        else:
+            cser.db.review_set_body(rev.idnum, body, 'Reviewed-by:' in body)
+            tout.notice(f'Revised the review of {_review_label(rev.seq)}')
+        print(body)
+        print()
+    cser.commit()
+
+
 def _do_revise(args, pwork, cser, link):
     """Change stored reviews of a series, following a note from the reviewer
 
@@ -315,15 +346,7 @@ def _do_revise(args, pwork, cser, link):
         tout.notice('No reviews needed changing')
         return 0
 
-    for rev in reviews:
-        if rev.seq in changed:
-            body = changed[rev.seq]
-            cser.db.review_set_body(rev.idnum, body,
-                                    'Reviewed-by:' in body)
-            tout.notice(f'Revised the review of {_review_label(rev.seq)}')
-            print(body)
-            print()
-    cser.commit()
+    _save_revisions(cser, reviews, changed)
 
     if args.create_drafts:
         redo = [cser.db.review_get(rev.idnum) for rev in reviews

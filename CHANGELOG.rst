@@ -13,6 +13,10 @@ Added
 - Revising, redrafting or sending reviews on the ``patman serve`` page keeps
   the page where it is, showing the job on each review it acts on, then the
   new text, with the text from before available.
+- While a job is acting on a review, ``patman serve`` refuses to change the
+  review or start another job on it, and the page disables its buttons, even
+  after a reload. ``patman review --revise`` leaves a review alone if it
+  changed while being revised, and shows the revised text instead.
 - ``patman review --revise``, and revising on the ``patman serve`` page,
   give the agent the cover letter, the other reviews of the series, the
   comments from patchwork and the reviewer's writing voice, so that the
