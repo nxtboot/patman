@@ -42,6 +42,7 @@ def run_patman():
         from patman import test_checkpatch
         from patman import test_cseries
         from patman import test_review
+        from patman import test_send
         from patman import test_server
         from patman import test_settings
         from u_boot_pylib import test_command
@@ -53,6 +54,7 @@ def run_patman():
             [test_checkpatch.TestPatch, func_test.TestFunctional,
              'patman.settings', test_cseries.TestCseries,
              test_cseries.TestGetUpstreamBranch, test_review.TestReview,
+             test_send.TestSend,
              test_settings.TestSettings, test_server.TestWebServer,
              test_command.TestRunInteractive])
         sys.exit(0 if result.wasSuccessful() else 1)
