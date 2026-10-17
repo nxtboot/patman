@@ -340,8 +340,10 @@ class TestReview(CseriesTester):
     def _mock_review(self):
         """Mock applying the series, the upstream, git and the AI review"""
         fake_review = {1: f'Reviewed-by: {self.REVIEWER}'}
-        with mock.patch('patman.review.apply.apply_and_check',
-                        return_value=True), \
+        with mock.patch.object(review.core.claude_mod, 'check_available',
+                               return_value=True), \
+                mock.patch('patman.review.apply.apply_and_check',
+                           return_value=True), \
                 mock.patch('patman.review.apply.get_upstream_branch',
                            return_value='origin/master'), \
                 mock.patch('patman.review.core.review_patches_sync',
@@ -394,6 +396,24 @@ class TestReview(CseriesTester):
         pclist = cser.db.pcommit_get_list(svid)
         self.assertEqual(1, len(pclist))
         self.assertEqual(900, pclist[0].patch_id)
+
+    def test_review_no_agent(self):
+        """Test a review fails clearly, leaving no record, with no agent"""
+        cser = self.get_cser()
+        pwork = self._review_pwork()
+
+        with self._mock_review(), \
+                mock.patch.object(review.core.claude_mod, 'check_available',
+                                  return_value=False), \
+                mock.patch('patman.review.core.gitutil.ensure_worktree') as wtree:
+            with terminal.capture() as (_, err):
+                self.run_review('-s', str(self.REVIEW_LINK), pwork=pwork,
+                                expect_ret=1)
+        self.assertIn("The review agent is not available; install the "
+                      "'review' extra", err.getvalue())
+        wtree.assert_not_called()
+        self.db_open()
+        self.assertIsNone(cser.db.series_find_by_link(str(self.REVIEW_LINK)))
 
     def test_review_already_reviewed(self):
         """Test that reviewing the same link again is detected"""
