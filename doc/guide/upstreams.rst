@@ -168,9 +168,10 @@ concept list::
 ``binj-us``, with the ``us`` upstream, is sent to the U-Boot list and copied
 to the maintainers, as in :doc:`first-series`.
 
-Use ``patman series send`` for this, not plain ``patman send``. Plain
-``patman send`` does not look at the series' upstream, so it copies the
-mainline list and maintainers just as above.
+Plain ``patman send`` uses these settings too, when the branch belongs to a
+series in the database, and prints a line saying which upstream's settings
+it is using. A branch which is not in the database is sent with the default
+settings.
 
 Checking the To address
 -----------------------

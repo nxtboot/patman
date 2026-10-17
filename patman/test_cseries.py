@@ -4148,6 +4148,41 @@ Date:   .*
         self.assertTrue(os.path.exists(os.path.join(
             self.tmpdir, '0003-bootm-Make-it-boot.patch')))
 
+    def test_send_series_upstream(self):
+        """Plain 'send' uses the settings of the series' upstream"""
+        cser = self.get_cser()
+        cser.db.upstream_add('ci', 'https://ci.git', series_to='concept',
+                             no_maintainers=True, no_tags=True,
+                             identity='work')
+        cser.db.commit()
+        with terminal.capture():
+            cser.add('first', 'my description', allow_unmarked=True)
+        cser.db.series_set_upstream(cser.db.series_find_by_name('first'), 'ci')
+        cser.db.commit()
+        self.db_close()
+
+        args = cmdline.parse_args(['send', '-b', 'first'], config_fname=False)
+        with terminal.capture() as (out, _):
+            control._use_series_upstream(args, self.tmpdir)
+        self.assertIn("Using the send settings of upstream 'ci'", out.getvalue())
+        self.assertEqual(('concept', False, False, 'work'),
+                         (args.series_to, args.add_maintainers,
+                          args.process_tags, args.identity))
+
+        # A branch which is not a tracked series is sent as it is
+        args = cmdline.parse_args(['send', '-b', 'second'], config_fname=False)
+        control._use_series_upstream(args, self.tmpdir)
+        self.assertEqual((None, True), (getattr(args, 'series_to', None),
+                                        args.add_maintainers))
+
+        # With no database there is nothing to do, and none is created
+        os.unlink(os.path.join(self.tmpdir, '.patman.db'))
+        args = cmdline.parse_args(['send', '-b', 'first'], config_fname=False)
+        control._use_series_upstream(args, self.tmpdir)
+        self.assertTrue(args.add_maintainers)
+        self.assertFalse(os.path.exists(os.path.join(self.tmpdir,
+                                                     '.patman.db')))
+
     def test_series_send_and_link(self):
         """Test sending a series and then adding its link to the database"""
         def h_sleep(time_s):

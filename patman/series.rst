@@ -298,8 +298,8 @@ Sending
 
 If the series has a ``Series-to:`` tag that does not match the upstream's
 To address, patman refuses to send it, which catches a series about to go
-to the wrong mailing list. Plain ``patman send`` does not use the upstream
-settings, so use ``patman series send`` for these series.
+to the wrong mailing list. Plain ``patman send`` uses the same settings when
+the branch belongs to a series which patman tracks, and says so.
 
 The upstream's patchwork server is also used for the series' links, status
 and tags.

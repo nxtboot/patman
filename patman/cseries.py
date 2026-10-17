@@ -1327,19 +1327,7 @@ class Cseries(cser_helper.CseriesHelper):
         ser, version = self._parse_series_and_version(name, None)
         self._ensure_in_db(ser)
 
-        ups = self.get_series_upstream(name)
-        if ups:
-            settings = self.db.upstream_get_send_settings(ups)
-            if settings:
-                identity, series_to, no_maintainers, no_tags = settings
-                if identity and not getattr(args, 'identity', None):
-                    args.identity = identity
-                if series_to:
-                    args.series_to = series_to
-                if no_maintainers:
-                    args.add_maintainers = False
-                if no_tags:
-                    args.process_tags = False
+        self.apply_send_settings(args, self.get_series_upstream(name))
 
         args.branch = self._get_branch_name(ser.name, version)
         likely_sent = send.send(args, git_dir=self.gitdir, cwd=self.topdir)

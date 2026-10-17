@@ -81,6 +81,9 @@ Added
 
 Changed
 ~~~~~~~
+- Plain ``patman send`` uses the send settings of the series' upstream, as
+  ``patman series send`` does, when the branch belongs to a series in the
+  database, e.g. who to send to and whether to copy the maintainers.
 - The agents which refine reviews and suggest responses to replies follow
   the same rules for quoting as the review agents: single quotes for
   identifiers and other quoted text, and the author's text left as it is

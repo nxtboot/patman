@@ -81,13 +81,51 @@ def setup():
         settings.ReadGitAliases(alias_fname)
 
 
-def do_send(args):
+def _use_series_upstream(args, test_db=None):
+    """Use the send settings of the series' upstream, if patman tracks it
+
+    'patman series send' uses the settings of the series' upstream, such as
+    who to send to and whether to copy the maintainers. Do the same when the
+    branch being sent belongs to a series which patman tracks, so that the two
+    agree. If there is no database, nothing is done, so that sending never
+    creates one.
+
+    Args:
+        args (argparse.Namespace): 'send' arguments, which are updated
+        test_db (str or None): Directory containing the test database, None
+            to use the normal one
+    """
+    topdir = gitutil.get_top_level()
+    db_dir = test_db or os.environ.get('PATMAN_DB_DIR') or topdir
+    if not db_dir or not os.path.exists(os.path.join(
+            os.path.expanduser(db_dir), '.patman.db')):
+        return
+    branch = args.branch or gitutil.get_branch()
+    if not branch:
+        return
+    cser = cseries.Cseries(topdir, db_dir=test_db)
+    cser.open_database()
+    try:
+        name, _ = patchstream.split_name_version(branch)
+        ser = cser.get_series_by_name(name)
+        if ser and ser.upstream:
+            tout.notice(f"Using the send settings of upstream '{ser.upstream}', "
+                        f"for series '{name}'")
+            cser.apply_send_settings(args, ser.upstream)
+    finally:
+        cser.close_database()
+
+
+def do_send(args, test_db=None):
     """Create, check and send patches by email
 
     Args:
         args (argparse.Namespace): Arguments to patman
+        test_db (str or None): Directory containing the test database, None
+            to use the normal one
     """
     setup()
+    _use_series_upstream(args, test_db)
     send.send(args)
 
 
@@ -775,7 +813,7 @@ def do_patman(args, test_db=None, pwork=None, cser=None):
             if not args.process_tags:
                 args.ignore_bad_tags = True
             try:
-                do_send(args)
+                do_send(args, test_db)
             except Exception as exc:  # pylint: disable=W0718
                 _report_error(exc, args.debug)
                 return 1

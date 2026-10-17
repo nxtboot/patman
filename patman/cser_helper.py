@@ -489,6 +489,26 @@ class CseriesHelper:
             return ser.upstream
         return None
 
+    def apply_send_settings(self, args, ups):
+        """Use the send settings of an upstream, e.g. who to send to
+
+        Args:
+            args (argparse.Namespace): 'send' arguments, which are updated
+            ups (str or None): Name of the upstream, or None to do nothing
+        """
+        settings = self.db.upstream_get_send_settings(ups) if ups else None
+        if not settings:
+            return
+        identity, series_to, no_maintainers, no_tags = settings
+        if identity and not getattr(args, 'identity', None):
+            args.identity = identity
+        if series_to:
+            args.series_to = series_to
+        if no_maintainers:
+            args.add_maintainers = False
+        if no_tags:
+            args.process_tags = False
+
     def get_series_by_name(self, name, include_archived=False):
         """Get a Series object from the database by name
 
