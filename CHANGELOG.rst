@@ -90,6 +90,11 @@ Changed
 
 Fixed
 ~~~~~
+- ``patman review`` records the upstream of each series it reviews, and
+  names its branch after it, e.g. ``us-498633-review``. It did not, so the
+  ``patman serve`` page read the series from the default upstream's
+  patchwork server. Revising a review made before this still finds its
+  ``pw-`` branch.
 - In a review email, the first line of the quoted diffstat keeps its
   leading space, so that it lines up with the other lines.
 - The tests no longer need /usr/bin/env, and give the same results

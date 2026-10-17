@@ -1835,6 +1835,43 @@ VERDICT: skip"""
         self.assertIn('>  drivers/core/uclass.c | 6 ------\n'
                       '>  include/dm.h          | 2 +-\n', body)
 
+    def test_review_records_upstream(self):
+        """A review knows its upstream, which names its branch"""
+        cser = self.get_database()
+        cser.db.upstream_add('ci', 'https://ci.git',
+                             patchwork_url='https://pw.ci')
+        cser.db.patchwork_update('U-Boot', 1, 'uboot', 'ci')
+        cser.commit()
+        pwork = control._setup_patchwork(cser, None, 'ci', None)
+        self.assertEqual(('ci', 'https://pw.ci'), (pwork.upstream, pwork.url))
+        self.assertEqual('ci-155-review',
+                         review.lookup.make_review_name('155', pwork.upstream))
+
+        # The commits come from the review branch, which is named with the
+        # upstream, or with 'pw' for a review made before this was recorded
+        def commits(branches):
+            with mock.patch.object(review.stored.gitutil, 'get_top_level',
+                                   return_value=self.tmpdir), \
+                    mock.patch.object(review.stored.gitutil, 'ref_exists',
+                                      side_effect=lambda ref, _: ref in
+                                      branches), \
+                    mock.patch.object(review.stored.gitutil, 'count_revs',
+                                      return_value=1), \
+                    mock.patch.object(review.apply, 'get_upstream_branch',
+                                      return_value='ci/master'), \
+                    mock.patch.object(review.stored.subprocess,
+                                      'run') as run:
+                run.return_value.stdout = 'abc1 dm: Fix it\n'
+                out = review.stored._review_commits(
+                    Namespace(base_branch=None), cser, '155', 'ci')
+            return out, run.call_args.args[0][-1] if run.called else None
+
+        self.assertEqual((['abc1 dm: Fix it'], 'ci/master..ci-155-review'),
+                         commits({'ci-155-review'}))
+        self.assertEqual((['abc1 dm: Fix it'], 'ci/master..pw-155-review'),
+                         commits({'pw-155-review'}))
+        self.assertEqual(([], None), commits(set()))
+
     def test_review_comments_file(self):
         """Test writing the existing patchwork comments for the agent"""
         class FakePatchwork:

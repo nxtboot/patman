@@ -196,6 +196,7 @@ def _setup_patchwork(cser, pwork, ups, pw_url):
             "'patman patchwork set-project'")
     _, proj_id, link_name = proj
     pwork.project_set(proj_id, link_name)
+    pwork.upstream = ups
     return pwork
 
 

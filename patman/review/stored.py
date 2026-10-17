@@ -136,9 +136,13 @@ def _review_commits(args, cser, link, ups):
         list of str: One line for each commit, 'hash subject', oldest first,
             or an empty list if the branch is not present
     """
-    branch = lookup.make_review_name(link, ups)
     git_dir = gitutil.get_top_level()
-    if not gitutil.ref_exists(branch, git_dir):
+    # Reviews made before patman recorded the upstream use 'pw' in the name
+    for branch in (lookup.make_review_name(link, ups),
+                   lookup.make_review_name(link)):
+        if gitutil.ref_exists(branch, git_dir):
+            break
+    else:
         return []
     bases = [apply.get_upstream_branch(args, cser)]
     if ups:
