@@ -31,7 +31,9 @@ Added
   real U-Boot series which was merged in v2026.07: setting up, sending a
   first series, checking its status and collecting review tags, sending the
   next version, tracking it all with ``patman series``, sending to more
-  than one upstream, and dealing with common problems.
+  than one upstream, reviewing a series with ``patman review``, following
+  it all from a phone with ``patman serve``, and dealing with common
+  problems.
 - The docs have a command reference generated from patman's options, a page
   on how patch review works, and the contributing notes. The manual's
   chapters link to each other and to the guide, and 'patman -H' shows the

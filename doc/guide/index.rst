@@ -7,7 +7,8 @@ These pages show how to use patman, step by step, with a real U-Boot series:
 three binman documentation patches, ``binj-us``, which went to two versions
 and were merged in v2026.07. A second small series, ``align-fix``, shows
 collecting review tags, and a third, ``typos``, sending to the concept tree.
-All the output is from running patman on these branches.
+The last pages review a series from the concept tree. All the output is from
+running patman on these branches.
 
 Read them in order the first time. Each one follows on from the one before.
 
@@ -36,13 +37,20 @@ Read them in order the first time. Each one follows on from the one before.
     Send to more than one tree, such as mainline and the concept tree, each
     with its own mailing list, patchwork server and send settings
 
+:doc:`reviewing`
+    Review someone else's series with a Claude agent: apply it, review each
+    patch, change a review with a note, and send the reviews
+
+:doc:`serve`
+    Follow your series and reviews from a phone with ``patman serve``, and
+    work on the reviews there
+
 :doc:`problems`
     Messages you may see along the way, what causes them and what to do
 
 The :doc:`/reference/index` lists every command and its options. The manual
-covers each command and tag in full, and the setup for features not shown
-here, such as reviewing other people's series with ``patman review`` and
-following everything on a phone with ``patman serve``.
+covers each command and tag in full, along with features not shown here,
+such as syncing Gmail drafts and responding to replies to your reviews.
 
 .. toctree::
    :hidden:
@@ -53,4 +61,6 @@ following everything on a phone with ``patman serve``.
    next-version
    series-workflow
    upstreams
+   reviewing
+   serve
    problems
