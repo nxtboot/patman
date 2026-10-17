@@ -1756,7 +1756,7 @@ VERDICT: approved"""
         self.assertIn('On 2026-03-21, Marek Vasut', email)
         self.assertIn('> pci: Fix the return type', email)
         self.assertIn('> The return is wrong.', email)
-        self.assertIn('> drivers/pci.c', email)
+        self.assertIn('>  drivers/pci.c', email)
         self.assertIn('Reviewed-by: Test <test@test.com>', email)
 
     def test_review_parse_skip(self):
@@ -1800,6 +1800,40 @@ VERDICT: skip"""
                     ctx, cmt, 1, [(1, 'abc1234', 'spl: pad')]))
         loop.close()
         self.assertIsNone(result)
+
+    def test_review_diffstat_quoted(self):
+        """The diffstat in a review with comments keeps its leading spaces"""
+        ctx = self._make_review_ctx(author_name='Fred',
+            author_email='fred@example.com', date='2026-06-19')
+        ctx.repo_path = self.tmpdir
+        ctx.previous_reviews = {}
+        cmt = types.SimpleNamespace(hash='abc1234', subject='dm: Fix it',
+                                    msg='dm: Fix it\n\nbody text', rtags={})
+
+        async def mock_agent(_prompt, _options):
+            return True, ('GREETING: Fred\nCOMMENT:\n'
+                          '> diff --git a/drivers/core/uclass.c '
+                          'b/drivers/core/uclass.c\n'
+                          '> @@ -1,6 +1,0 @@\n> -int x;\n\n'
+                          'Why drop this?\n\nVERDICT: changes_needed\n')
+
+        stat = (' drivers/core/uclass.c | 6 ------\n'
+                ' include/dm.h          | 2 +-\n'
+                ' 2 files changed, 1 insertion(+), 7 deletions(-)\n')
+        loop = asyncio.new_event_loop()
+        with mock.patch.object(review.core.claude_mod, 'run_agent_collect',
+                               side_effect=mock_agent), \
+                mock.patch.object(review.common, 'ClaudeAgentOptions'), \
+                mock.patch.object(review.prompts, 'build_review_prompt',
+                                  return_value='prompt'), \
+                mock.patch.object(review.core.gitutil, 'diff_stat',
+                                  return_value=stat), \
+                terminal.capture():
+            body = loop.run_until_complete(review.core._review_single_patch(
+                ctx, cmt, 1, [(1, 'abc1234', 'dm: Fix it')]))
+        loop.close()
+        self.assertIn('>  drivers/core/uclass.c | 6 ------\n'
+                      '>  include/dm.h          | 2 +-\n', body)
 
     def test_review_comments_file(self):
         """Test writing the existing patchwork comments for the agent"""

@@ -90,6 +90,8 @@ Changed
 
 Fixed
 ~~~~~
+- In a review email, the first line of the quoted diffstat keeps its
+  leading space, so that it lines up with the other lines.
 - The tests no longer need /usr/bin/env, and give the same results
   whichever directory they are run from, which helps when packaging
   patman, e.g. for Guix. A command which fails in a test now shows its

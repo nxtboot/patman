@@ -121,8 +121,9 @@ async def _run_patch_review(ctx, cmt, seq, all_commits):
         commit_msg = body
     else:
         commit_msg = (cmt.subject + '\n' + body).strip()
+    # Keep the leading space of each line, so the quoted lines line up
     ctx.diffstat = gitutil.diff_stat(f'{cmt.hash}~..{cmt.hash}',
-                                     ctx.repo_path).strip()
+                                     ctx.repo_path).strip('\n')
 
     previous_review = ctx.previous_reviews.get(seq)
     prompt = prompts.build_review_prompt(ctx, cmt.hash, seq, all_commits,

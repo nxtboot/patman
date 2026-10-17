@@ -159,7 +159,7 @@ def _format_approved(ctx, commit_message=None, diffstat=None):
             lines.append(f'> {cl}')
     if diffstat:
         lines.append('>')
-        for dl in diffstat.strip().splitlines():
+        for dl in diffstat.strip('\n').splitlines():
             lines.append(f'> {dl}')
     lines += ['', f'Reviewed-by: {ctx.reviewer_tag}', '']
     return '\n'.join(lines)
@@ -262,7 +262,7 @@ def _format_with_comments(ctx, greeting, verdict, comments,
             lines.append('> [...]')
     diffstat = getattr(ctx, 'diffstat', None)
     if diffstat:
-        ds_lines = diffstat.strip().splitlines()
+        ds_lines = diffstat.strip('\n').splitlines()
         if len(ds_lines) <= 30:
             lines.append('>')
             for dl in ds_lines:
