@@ -14,6 +14,7 @@ share.
 import asyncio
 import re
 import shutil
+import uuid
 
 import aiohttp
 
@@ -98,6 +99,24 @@ def agent_options(**kwargs):
     return ClaudeAgentOptions(**kwargs)
 
 
+def session_options(ctx, seq, **kwargs):
+    """Create agent options for reviewing a patch in a new, recorded session
+
+    The session ID is kept in ctx.session_ids so that it can be stored with
+    the review and the session resumed later, e.g. to revise the review.
+
+    Args:
+        ctx (ReviewContext): Review context
+        seq (int): Patch number, or 0 for the cover letter
+        kwargs: Fields to pass to ClaudeAgentOptions
+
+    Returns:
+        ClaudeAgentOptions: Configured options
+    """
+    ctx.session_ids[seq] = str(uuid.uuid4())
+    return agent_options(session_id=ctx.session_ids[seq], **kwargs)
+
+
 class ReviewContext:  # pylint: disable=R0902
     """Common context for review operations
 
@@ -145,6 +164,8 @@ class ReviewContext:  # pylint: disable=R0902
         self.patch_count = None
         self.patch_selection = None
         self.cover_content = None
+        # Agent session ID used to review each patch (0 for the cover letter)
+        self.session_ids = {}
         self.previous_reviews = {}
         self.diffstat = None
         self.context = None

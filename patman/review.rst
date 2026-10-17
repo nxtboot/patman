@@ -301,7 +301,10 @@ To have the agent change reviews which have not been sent yet, say what you
 want in a note with ``--revise``. It changes only what the note asks for,
 and can check the code using the review branch. It also sees the cover
 letter, the other reviews of the series, the comments from patchwork and
-your writing voice, so that the new text fits with the rest. Use ``-i`` to pick which
+your writing voice, so that the new text fits with the rest. When you revise
+a single review, the agent carries on from the session which wrote it, so it
+knows what that agent found; this works while Claude Code keeps the session
+(30 days by default), and a new session is used after that. Use ``-i`` to pick which
 patches' reviews it looks at (0 is the cover letter), and ``-d`` to update
 the Gmail drafts of the reviews which change::
 

@@ -157,12 +157,17 @@ def _review_commits(args, cser, link, ups):
     return out.splitlines()
 
 
-async def revise_reviews(ctx, reviews, note, commits, others=None):
+async def revise_reviews(ctx, reviews, note, commits, others=None,
+                         session=None):
     """Ask the agent to change some reviews, following a note from the reviewer
 
     The agent is also given the cover letter, the other reviews of the series,
     the comments it has received and the reviewer's writing voice, if known,
-    so that it writes as the original review did.
+    so that it writes as the original review did. When a single review is
+    revised, the agent can carry on from the session which wrote it, seeing
+    everything that session did; a copy of the session is used, so the
+    original is left as it was. If the session cannot be resumed, e.g.
+    because Claude Code has removed it, a new session is used.
 
     Args:
         ctx (ReviewContext): Review context (uses repo_path, reviewer_tag,
@@ -172,6 +177,8 @@ async def revise_reviews(ctx, reviews, note, commits, others=None):
         commits (list of str): 'hash subject' for each patch, in order
         others (dict or None): Map of seq to the body of each other review of
             the series, which the agent sees but does not change
+        session (str or None): ID of the agent session which wrote the
+            review, to resume, or None to start a new session
 
     Returns:
         dict or None: Map of seq to new review body text, for each review
@@ -199,11 +206,22 @@ async def revise_reviews(ctx, reviews, note, commits, others=None):
             note=note, reviews_path=reviews_path, patches=patches,
             context=context, tag=ctx.reviewer_tag, spelling=ctx.spelling,
             voice=prompts.voice_section())
-        options = common.agent_options(
-            allowed_tools=['Bash', 'Read', 'Grep'], cwd=ctx.repo_path,
-            max_buffer_size=claude_mod.MAX_BUFFER_SIZE)
-        tout.notice('Revising reviews...')
-        success, log = await claude_mod.run_agent_collect(prompt, options)
+        kwargs = {'allowed_tools': ['Bash', 'Read', 'Grep'],
+                  'cwd': ctx.repo_path,
+                  'max_buffer_size': claude_mod.MAX_BUFFER_SIZE}
+        success = False
+        if session:
+            tout.notice('Revising reviews, carrying on from the review...')
+            options = common.agent_options(resume=session, fork_session=True,
+                                           **kwargs)
+            success, log = await claude_mod.run_agent_collect(prompt, options)
+            if not success:
+                tout.notice('Could not resume the review session; starting '
+                            'a new one')
+        if not success:
+            tout.notice('Revising reviews...')
+            options = common.agent_options(**kwargs)
+            success, log = await claude_mod.run_agent_collect(prompt, options)
     finally:
         os.unlink(reviews_path)
     if not success:
@@ -212,9 +230,11 @@ async def revise_reviews(ctx, reviews, note, commits, others=None):
             if seq in reviews and body and body != reviews[seq].strip()}
 
 
-def revise_reviews_sync(ctx, reviews, note, commits, others=None):
+def revise_reviews_sync(ctx, reviews, note, commits, others=None,
+                        session=None):
     """Synchronous wrapper for revise_reviews()"""
-    return common.run(revise_reviews(ctx, reviews, note, commits, others))
+    return common.run(revise_reviews(ctx, reviews, note, commits, others,
+                                     session))
 
 
 def _read_series_context(ctx, pwork, link):
@@ -278,10 +298,13 @@ def _do_revise(args, pwork, cser, link):
     chosen = {rev.seq for rev in reviews}
     others = {rev.seq: rev.body for rev in all_reviews
               if rev.seq not in chosen}
+    # A single review can carry on from the session which wrote it
+    session = (cser.db.review_get_session(reviews[0].idnum)
+               if len(reviews) == 1 else None)
     try:
         changed = revise_reviews_sync(
             ctx, {rev.seq: rev.body for rev in reviews}, args.revise, commits,
-            others)
+            others, session)
     finally:
         if ctx.comments_path and os.path.exists(ctx.comments_path):
             os.unlink(ctx.comments_path)

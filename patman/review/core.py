@@ -74,8 +74,8 @@ async def _run_cover_review(ctx, all_commits):
     tout.notice('Reviewing series (cover letter)...')
     prompt = prompts.build_cover_review_prompt(
         ctx, all_commits, previous_review=ctx.previous_reviews.get(0))
-    options = common.agent_options(
-        allowed_tools=['Bash', 'Read', 'Grep'], cwd=ctx.repo_path,
+    options = common.session_options(
+        ctx, 0, allowed_tools=['Bash', 'Read', 'Grep'], cwd=ctx.repo_path,
         max_buffer_size=claude_mod.MAX_BUFFER_SIZE)
     success, log = await claude_mod.run_agent_collect(prompt, options)
     if not success or not log.strip():
@@ -127,8 +127,9 @@ async def _run_patch_review(ctx, cmt, seq, all_commits):
     previous_review = ctx.previous_reviews.get(seq)
     prompt = prompts.build_review_prompt(ctx, cmt.hash, seq, all_commits,
                                          previous_review)
-    options = common.agent_options(allowed_tools=['Bash', 'Read', 'Grep'],
-        cwd=ctx.repo_path, max_buffer_size=claude_mod.MAX_BUFFER_SIZE)
+    options = common.session_options(
+        ctx, seq, allowed_tools=['Bash', 'Read', 'Grep'], cwd=ctx.repo_path,
+        max_buffer_size=claude_mod.MAX_BUFFER_SIZE)
     success, log = await claude_mod.run_agent_collect(prompt, options)
     if not success or not log.strip():
         return None
@@ -284,8 +285,9 @@ def _store_finding(ctx, seq, subject, verdict, comments, timestamp):
     comments = sorted(comments, key=lambda hc: emails.is_code_comment(hc[0]))
     body = emails.cleanup_review_text(emails.format_findings(verdict,
                                                              comments))
-    ctx.cser.db.review_add(ctx.svid, seq, body, verdict == 'approved',
-                           timestamp)
+    rid = ctx.cser.db.review_add(ctx.svid, seq, body, verdict == 'approved',
+                                 timestamp)
+    ctx.cser.db.review_set_session(rid, ctx.session_ids.get(seq))
     emails.print_finding(seq, ctx.patch_count, subject, verdict, comments)
     return len(comments)
 
@@ -565,6 +567,8 @@ def _run_and_store_reviews(ctx, args):
         approved = 'Reviewed-by:' in body
         review_ids[seq] = ctx.cser.db.review_add(ctx.svid, seq, body, approved,
                                                  timestamp)
+        ctx.cser.db.review_set_session(review_ids[seq],
+                                       ctx.session_ids.get(seq))
     ctx.cser.commit()
 
     _show_reviews(review_bodies, ctx.series_data)

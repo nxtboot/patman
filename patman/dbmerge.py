@@ -157,7 +157,7 @@ SER_VER_COLS = ['version', 'link', 'cover_id', 'cover_num_comments', 'name',
 PCOMMIT_COLS = ['seq', 'subject', 'patch_id', 'change_id', 'state',
                 'num_comments']
 REVIEW_COLS = ['seq', 'body', 'approved', 'timestamp', 'draft_id', 'status',
-               'gmail_msg_id', 'gmail_thread_id']
+               'gmail_msg_id', 'gmail_thread_id', 'session_id']
 REPLY_COLS = ['gmail_msg_id', 'msgid', 'refs', 'sender', 'to_addrs',
               'cc_addrs', 'subject', 'date', 'body', 'response', 'status',
               'draft_id', 'timestamp']

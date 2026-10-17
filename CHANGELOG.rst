@@ -14,6 +14,9 @@ Added
   give the agent the cover letter, the other reviews of the series, the
   comments from patchwork and the reviewer's writing voice, so that the
   revised text fits with the rest.
+- Each review records the agent session which wrote it, and revising a
+  single review carries on from a copy of that session, falling back to a
+  new session if it has gone. This needs a database migration to v12.
 - A guide in ``doc/guide/`` shows how to use patman step by step with a
   real U-Boot series which was merged in v2026.07: setting up, sending a
   first series, checking its status and collecting review tags, sending the

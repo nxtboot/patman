@@ -21,7 +21,7 @@ from u_boot_pylib import tout
 from patman.series import Series
 
 # Schema version (version 0 means there is no database yet)
-LATEST = 11
+LATEST = 12
 
 # Information about a review record
 # Review status values
@@ -313,6 +313,10 @@ class Database:  # pylint:disable=R0904
             'status, draft_id, timestamp, '
             'FOREIGN KEY (review_id) REFERENCES review (id))')
 
+    def _migrate_to_v12(self):
+        """Add the agent session ID to the review table"""
+        self.cur.execute('ALTER TABLE review ADD COLUMN session_id')
+
     # pylint: disable=R0912
     def migrate_to(self, dest_version):
         """Migrate the database to the selected version
@@ -367,6 +371,8 @@ class Database:  # pylint:disable=R0904
                 self._migrate_to_v10()
             elif version == 11:
                 self._migrate_to_v11()
+            elif version == 12:
+                self._migrate_to_v12()
 
             # Save the new version if we have a schema_version table
             if version > 1:
@@ -1432,6 +1438,29 @@ class Database:  # pylint:disable=R0904
             (svid, seq, body, 1 if approved else 0, timestamp,
              REVIEW_NEW))
         return self.lastrowid()
+
+    def review_set_session(self, review_id, session_id):
+        """Set the ID of the agent session which wrote a review
+
+        Args:
+            review_id (int): Review record ID
+            session_id (str or None): Agent session ID
+        """
+        self.execute('UPDATE review SET session_id = ? WHERE id = ?',
+                     (session_id, review_id))
+
+    def review_get_session(self, review_id):
+        """Get the ID of the agent session which wrote a review
+
+        Args:
+            review_id (int): Review record ID
+
+        Return:
+            str or None: Agent session ID, or None if not known
+        """
+        rec = self.execute('SELECT session_id FROM review WHERE id = ?',
+                           (review_id,)).fetchone()
+        return rec[0] if rec else None
 
     def review_set_draft_id(self, review_id, draft_id):
         """Set the Gmail draft ID for a review record

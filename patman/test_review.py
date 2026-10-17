@@ -1095,6 +1095,80 @@ class TestReview(CseriesTester):
                                return_value='Be terse'):
             self.assertIn('Be terse', review.prompts.voice_section())
 
+    def test_review_session(self):
+        """Each review records its agent session, which revise resumes"""
+        cser = self.get_database()
+        db = cser.db
+        sid = db.series_add('rev', 'Fred series', None)
+        db.series_set_source(sid, 'review')
+        svid = db.ser_ver_add(sid, 1, link='123')
+        rid = db.review_add(svid, 1, 'Hi Fred,\n\n> code\n\nNit', False,
+                            '2026-10-01T00:00:00')
+        other = db.review_add(svid, 2, 'Hi Fred,\n\nLooks fine', False,
+                              '2026-10-01T00:00:00')
+        self.assertIsNone(db.review_get_session(rid))
+        db.review_set_session(rid, 'sess-1')
+        db.commit()
+        self.assertEqual('sess-1', db.review_get_session(rid))
+
+        # A new session is recorded for each patch which is reviewed
+        ctx = review.common.ReviewContext(None, cser, {})
+        with mock.patch.object(review.common, 'ClaudeAgentOptions') as opts:
+            review.common.session_options(ctx, 3, cwd='/tmp')
+        self.assertEqual(36, len(ctx.session_ids[3]))
+        self.assertEqual(ctx.session_ids[3],
+                         opts.call_args.kwargs['session_id'])
+
+        new_body = 'Hi Fred,\n\nReviewed-by: Simon Glass <sjg@chromium.org>'
+        results = []
+
+        async def mock_agent(_prompt, _options):
+            return results.pop(0)
+
+        def run(*argv):
+            args = cmdline.parse_args(
+                ['review', '-s', '123', '--revise', 'Approve it',
+                 '--reviewer', 'Simon Glass <sjg@chromium.org>', *argv],
+                config_fname=False)
+            with mock.patch.object(review.core.claude_mod,
+                                   'run_agent_collect',
+                                   side_effect=mock_agent), \
+                    mock.patch.object(review.core.claude_mod,
+                                      'check_available', return_value=True), \
+                    mock.patch.object(review.common,
+                                      'ClaudeAgentOptions') as opts, \
+                    mock.patch.object(review.stored, '_review_commits',
+                                      return_value=['abc1 dm: Fix it']), \
+                    terminal.capture() as (out, _):
+                self.assertEqual(
+                    0, review.stored._do_revise(args, None, cser, '123'))
+            return [call.kwargs for call in opts.call_args_list], out.getvalue()
+
+        # Revising one review carries on from a copy of its session
+        results[:] = [(True, f'---SEQ 1---\n{new_body}\n')]
+        calls, out = run('-i', '1')
+        self.assertEqual(1, len(calls))
+        self.assertEqual(('sess-1', True),
+                         (calls[0]['resume'], calls[0]['fork_session']))
+        self.assertIn('carrying on from the review', out)
+        self.assertEqual(new_body, db.review_get(rid).body)
+
+        # If the session has gone, a new one is used
+        db.review_set_body(rid, 'Hi Fred,\n\nNit', False)
+        results[:] = [(False, ''), (True, f'---SEQ 1---\n{new_body}\n')]
+        calls, out = run('-i', '1')
+        self.assertEqual(['sess-1', None],
+                         [call.get('resume') for call in calls])
+        self.assertIn('Could not resume the review session', out)
+        self.assertEqual(new_body, db.review_get(rid).body)
+
+        # Revising more than one review starts a new session
+        db.review_set_body(rid, 'Hi Fred,\n\nNit', False)
+        results[:] = [(True, f'---SEQ 1---\n{new_body}\n')]
+        calls, _ = run()
+        self.assertEqual([None], [call.get('resume') for call in calls])
+        self.assertEqual('Hi Fred,\n\nLooks fine', db.review_get(other).body)
+
     def test_review_send(self):
         """The Gmail drafts of a series' reviews can be sent"""
         cser = self.get_database()
